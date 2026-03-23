@@ -1,0 +1,96 @@
+replicaCount: 1
+
+image:
+  repository: nebulacb/nebulacb
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+  hosts:
+    - host: nebulacb.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: nebulacb-tls
+  #    hosts:
+  #      - nebulacb.example.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Authentication
+auth:
+  enabled: true
+  username: admin
+  # password is stored in a Kubernetes secret (see secret.yaml)
+  password: ""
+
+config:
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    auth:
+      enabled: true
+      username: admin
+      password: ""
+  source:
+    name: source
+    host: "couchbase-source:8091"
+    username: Administrator
+    password: ""
+    bucket: default
+  target:
+    name: target
+    host: "couchbase-target:8091"
+    username: Administrator
+    password: ""
+    bucket: default
+  storm:
+    writes_per_second: 1000
+    reads_per_second: 500
+    doc_size_min: 1024
+    doc_size_max: 10240
+    workers: 16
+    region: "us-east-1"
+    key_prefix: "nebula"
+  upgrade:
+    source_version: "7.2.2"
+    target_version: "7.6.0"
+    namespace: couchbase
+    cluster_name: cb-cluster
+  metrics:
+    enabled: true
+    port: 9090
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

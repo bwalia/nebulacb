@@ -1,0 +1,64 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "auth": {
+      "enabled": true,
+      "username": "admin",
+      "password": "nebulacb"
+    }
+  },
+  "source": {
+    "name": "source",
+    "host": "localhost:8091",
+    "username": "Administrator",
+    "password": "password",
+    "bucket": "default",
+    "role": "source"
+  },
+  "target": {
+    "name": "target",
+    "host": "localhost:9091",
+    "username": "Administrator",
+    "password": "password",
+    "bucket": "default",
+    "role": "target"
+  },
+  "storm": {
+    "writes_per_second": 1000,
+    "reads_per_second": 500,
+    "doc_size_min": 1024,
+    "doc_size_max": 10240,
+    "workers": 16,
+    "region": "us-east-1",
+    "burst_enabled": false,
+    "burst_multiplier": 3.0,
+    "hot_key_percentage": 0.2,
+    "delete_percentage": 0.05,
+    "update_percentage": 0.30,
+    "key_prefix": "nebula"
+  },
+  "upgrade": {
+    "source_version": "7.2.2",
+    "target_version": "7.6.0",
+    "namespace": "couchbase",
+    "cluster_name": "cb-cluster",
+    "max_unavailable": 1
+  },
+  "xdcr": {
+    "poll_interval": 5000000000,
+    "goxdcr_delay_alert": 300000000000
+  },
+  "validator": {
+    "batch_size": 10000,
+    "scan_interval": 30000000000,
+    "hash_check": true,
+    "sequence_check": true,
+    "key_sampling": 1.0
+  },
+  "metrics": {
+    "enabled": true,
+    "endpoint": "/metrics",
+    "port": 9090
+  }
+}

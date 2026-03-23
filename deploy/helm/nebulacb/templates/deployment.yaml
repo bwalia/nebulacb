@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nebulacb.fullname" . }}
+  labels:
+    {{- include "nebulacb.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nebulacb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nebulacb.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "nebulacb.serviceAccountName" . }}
+      containers:
+        - name: nebulacb
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.config.metrics.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.json
+              subPath: config.json
+            - name: reports
+              mountPath: /app/reports
+          env:
+            - name: CB_SOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nebulacb.fullname" . }}-secrets
+                  key: source-password
+            - name: CB_TARGET_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nebulacb.fullname" . }}-secrets
+                  key: target-password
+            - name: NEBULACB_AUTH_USERNAME
+              value: {{ .Values.auth.username | quote }}
+            - name: NEBULACB_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nebulacb.fullname" . }}-secrets
+                  key: auth-password
+            - name: NEBULACB_AUTH_ENABLED
+              value: {{ .Values.auth.enabled | quote }}
+            {{- if .Values.ingress.enabled }}
+            - name: NEBULACB_DOMAIN
+              value: {{ (index .Values.ingress.hosts 0).host | quote }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nebulacb.fullname" . }}-config
+        - name: reports
+          emptyDir: {}
