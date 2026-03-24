@@ -23,6 +23,13 @@ type Config struct {
 	XDCR      models.XDCRConfig    `json:"xdcr" yaml:"xdcr"`
 	Validator models.ValidatorConfig `json:"validator" yaml:"validator"`
 	Metrics   MetricsConfig        `json:"metrics" yaml:"metrics"`
+	// New: multi-region, HA, backup, migration, AI, Docker
+	Regions   []models.RegionConfig   `json:"regions,omitempty" yaml:"regions,omitempty"`
+	Failover  models.FailoverConfig   `json:"failover,omitempty" yaml:"failover,omitempty"`
+	Backup    models.BackupConfig     `json:"backup,omitempty" yaml:"backup,omitempty"`
+	Migration models.MigrationConfig  `json:"migration,omitempty" yaml:"migration,omitempty"`
+	AI        models.AIConfig         `json:"ai,omitempty" yaml:"ai,omitempty"`
+	Docker    models.DockerConfig     `json:"docker,omitempty" yaml:"docker,omitempty"`
 }
 
 // GetClusters returns the full cluster map (source/target + any additional clusters).
@@ -153,6 +160,43 @@ func DefaultConfig() *Config {
 			Endpoint: "/metrics",
 			Port:     9090,
 		},
+		Failover: models.FailoverConfig{
+			Enabled:             false,
+			AutoFailover:        false,
+			FailoverTimeout:     120 * time.Second,
+			MaxAutoFailovers:    1,
+			HealthCheckInterval: 10 * time.Second,
+			RecoveryMode:        "manual",
+			PreserveData:        true,
+		},
+		Backup: models.BackupConfig{
+			Enabled:       false,
+			Schedule:      "0 2 * * *",
+			Repository:    "/tmp/nebulacb-backups",
+			RetentionDays: 7,
+			Compression:   true,
+			Encryption:    false,
+			Timeout:       30 * time.Minute,
+		},
+		Migration: models.MigrationConfig{
+			Workers:       8,
+			BatchSize:     1000,
+			Timeout:       24 * time.Hour,
+			RetryAttempts: 3,
+			ValidateAfter: true,
+		},
+		AI: models.AIConfig{
+			Enabled:     false,
+			Provider:    "anthropic",
+			Model:       "claude-sonnet-4-20250514",
+			MaxTokens:   4096,
+			AutoAnalyze: false,
+		},
+		Docker: models.DockerConfig{
+			Enabled: false,
+			Host:    "unix:///var/run/docker.sock",
+			Network: "nebulacb-net",
+		},
 	}
 }
 
@@ -160,6 +204,7 @@ func DefaultConfig() *Config {
 // Environment variables override file values:
 //   NEBULACB_AUTH_USERNAME, NEBULACB_AUTH_PASSWORD, NEBULACB_AUTH_ENABLED
 //   NEBULACB_DOMAIN, NEBULACB_TLS_CERT, NEBULACB_TLS_KEY
+//   NEBULACB_AI_PROVIDER, NEBULACB_AI_API_KEY, NEBULACB_AI_MODEL
 func LoadFromFile(path string) (*Config, error) {
 	cfg := DefaultConfig()
 
@@ -224,15 +269,29 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.Target.Bucket = v
 	}
 
+	// AI env overrides
+	if v := os.Getenv("NEBULACB_AI_PROVIDER"); v != "" {
+		cfg.AI.Enabled = true
+		cfg.AI.Provider = v
+	}
+	if v := os.Getenv("NEBULACB_AI_API_KEY"); v != "" {
+		cfg.AI.APIKey = v
+		cfg.AI.Enabled = true
+	}
+	if v := os.Getenv("NEBULACB_AI_MODEL"); v != "" {
+		cfg.AI.Model = v
+	}
+	if v := os.Getenv("NEBULACB_AI_ENDPOINT"); v != "" {
+		cfg.AI.APIEndpoint = v
+	}
+
+	// Docker env overrides
+	if v := os.Getenv("NEBULACB_DOCKER_HOST"); v != "" {
+		cfg.Docker.Enabled = true
+		cfg.Docker.Host = v
+	}
+
 	// Multi-cluster env vars: NEBULACB_CLUSTER_<NAME>_<FIELD>
-	// Example:
-	//   NEBULACB_CLUSTER_DC1_HOST=couchbase://dc1.example.com:8091
-	//   NEBULACB_CLUSTER_DC1_USERNAME=admin
-	//   NEBULACB_CLUSTER_DC1_PASSWORD=secret
-	//   NEBULACB_CLUSTER_DC1_BUCKET=mybucket
-	//   NEBULACB_CLUSTER_DC1_ROLE=source
-	//   NEBULACB_CLUSTER_DC2_HOST=couchbase://dc2.example.com:8091
-	//   ...
 	parseClusterEnvVars(cfg)
 }
 
@@ -299,6 +358,18 @@ func parseClusterEnvVars(cfg *Config) {
 		if v, ok := fields["ROLE"]; ok {
 			cc.Role = strings.ToLower(v)
 		}
+		if v, ok := fields["REGION"]; ok {
+			cc.Region = v
+		}
+		if v, ok := fields["ZONE"]; ok {
+			cc.Zone = v
+		}
+		if v, ok := fields["EDITION"]; ok {
+			cc.Edition = strings.ToLower(v)
+		}
+		if v, ok := fields["PLATFORM"]; ok {
+			cc.Platform = strings.ToLower(v)
+		}
 		if cc.Name == "" {
 			cc.Name = name
 		}
@@ -307,6 +378,6 @@ func parseClusterEnvVars(cfg *Config) {
 		}
 
 		cfg.Clusters[name] = cc
-		log.Printf("[Config] Cluster from env: %s (host=%s role=%s bucket=%s)", name, cc.Host, cc.Role, cc.Bucket)
+		log.Printf("[Config] Cluster from env: %s (host=%s role=%s bucket=%s region=%s platform=%s)", name, cc.Host, cc.Role, cc.Bucket, cc.Region, cc.Platform)
 	}
 }

@@ -39,15 +39,42 @@ func NewOrchestrator(cfg models.UpgradeConfig, k8s *kubernetes.K8sClient, collec
 
 // Start begins the upgrade process.
 func (o *Orchestrator) Start(ctx context.Context) error {
+	return o.StartWithParams(ctx, "", "")
+}
+
+// StartWithParams begins the upgrade, optionally overriding cluster name, target version, and namespace.
+func (o *Orchestrator) StartWithParams(ctx context.Context, clusterName, targetVersion string) error {
+	return o.StartWithFullParams(ctx, clusterName, targetVersion, "")
+}
+
+// StartWithFullParams begins the upgrade with full parameter overrides.
+func (o *Orchestrator) StartWithFullParams(ctx context.Context, clusterName, targetVersion, namespace string) error {
 	o.mu.Lock()
-	if o.status.Phase != "pending" && o.status.Phase != "failed" && o.status.Phase != "aborted" {
+	if o.status.Phase != "pending" && o.status.Phase != "failed" && o.status.Phase != "aborted" && o.status.Phase != "completed" {
 		o.mu.Unlock()
 		return fmt.Errorf("upgrade already in progress: %s", o.status.Phase)
 	}
-	ctx, o.cancel = context.WithCancel(ctx)
-	o.status.Phase = "pre-check"
-	o.status.StartTime = time.Now()
-	o.status.Errors = nil
+
+	// Apply overrides
+	if clusterName != "" {
+		o.config.ClusterName = clusterName
+	}
+	if targetVersion != "" {
+		o.config.TargetVersion = targetVersion
+	}
+	if namespace != "" {
+		o.config.Namespace = namespace
+		o.k8s.SetNamespace(namespace)
+	}
+
+	// Use a detached context so the upgrade outlives the HTTP request that started it
+	ctx, o.cancel = context.WithCancel(context.Background())
+	o.status = models.UpgradeStatus{
+		Phase:         "pre-check",
+		SourceVersion: o.config.SourceVersion,
+		TargetVersion: o.config.TargetVersion,
+		StartTime:     time.Now(),
+	}
 	o.mu.Unlock()
 
 	go o.run(ctx)
@@ -76,6 +103,12 @@ func (o *Orchestrator) GetStatus() models.UpgradeStatus {
 func (o *Orchestrator) run(ctx context.Context) {
 	log.Printf("[Orchestrator] Starting upgrade %s -> %s", o.config.SourceVersion, o.config.TargetVersion)
 
+	// Guard: k8s client required
+	if o.k8s == nil {
+		o.setError("Kubernetes client not available — configure KUBECONFIG to run upgrades")
+		return
+	}
+
 	// Pre-check: verify cluster state
 	if err := o.preCheck(ctx); err != nil {
 		o.setError("pre-check failed: %v", err)
@@ -83,7 +116,7 @@ func (o *Orchestrator) run(ctx context.Context) {
 	}
 
 	// Discover nodes
-	pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,cluster=%s", o.config.ClusterName))
+	pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,couchbase_cluster=%s", o.config.ClusterName))
 	if err != nil {
 		o.setError("failed to list pods: %v", err)
 		return
@@ -95,17 +128,13 @@ func (o *Orchestrator) run(ctx context.Context) {
 	o.mu.Unlock()
 	o.publishStatus()
 
-	// Execute Helm upgrade
-	setValues := map[string]string{
-		"couchbaseCluster.version": o.config.TargetVersion,
-	}
-
-	if err := o.k8s.HelmUpgrade(ctx, o.config.HelmRelease, o.config.HelmChart, o.config.HelmValues, setValues); err != nil {
-		// Check for abort
+	// Trigger rolling upgrade by patching the CouchbaseCluster CR image
+	log.Printf("[Orchestrator] Patching CouchbaseCluster %s to version %s", o.config.ClusterName, o.config.TargetVersion)
+	if err := o.k8s.PatchCouchbaseCluster(ctx, o.config.ClusterName, o.config.TargetVersion); err != nil {
 		if ctx.Err() != nil {
 			return
 		}
-		o.setError("helm upgrade failed: %v", err)
+		o.setError("patch CouchbaseCluster failed: %v", err)
 		return
 	}
 
@@ -116,7 +145,7 @@ func (o *Orchestrator) run(ctx context.Context) {
 func (o *Orchestrator) preCheck(ctx context.Context) error {
 	log.Println("[Orchestrator] Running pre-checks...")
 
-	pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,cluster=%s", o.config.ClusterName))
+	pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,couchbase_cluster=%s", o.config.ClusterName))
 	if err != nil {
 		return fmt.Errorf("cannot list pods: %w", err)
 	}
@@ -140,7 +169,7 @@ func (o *Orchestrator) trackRollingUpgrade(ctx context.Context, originalPods []k
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,cluster=%s", o.config.ClusterName))
+			pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,couchbase_cluster=%s", o.config.ClusterName))
 			if err != nil {
 				continue
 			}

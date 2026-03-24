@@ -6,6 +6,9 @@ export interface NodeStatus {
   memory_usage: number;
   cpu_usage: number;
   disk_usage: number;
+  services?: string[];
+  region?: string;
+  zone?: string;
 }
 
 export interface ClusterMetrics {
@@ -24,6 +27,10 @@ export interface ClusterMetrics {
   vb_active_resident_items_ratio: number;
   curr_connections: number;
   version: string;
+  edition?: string;
+  platform?: string;
+  region?: string;
+  zone?: string;
   healthy: boolean;
 }
 
@@ -110,6 +117,119 @@ export interface Alert {
   resolved: boolean;
 }
 
+// ─── Multi-Region ───────────────────────────────────────────────────────────
+
+export interface RegionStatus {
+  name: string;
+  display_name: string;
+  provider: string;
+  primary: boolean;
+  cluster_count: number;
+  healthy_clusters: number;
+  total_docs: number;
+  ops_per_sec: number;
+  replication_lag_ms: number;
+  status: string;
+}
+
+// ─── HA & Failover ──────────────────────────────────────────────────────────
+
+export interface FailoverStatus {
+  mode: string;
+  primary_cluster: string;
+  standby_cluster: string;
+  auto_failover_enabled: boolean;
+  failover_history?: FailoverEvent[];
+  last_health_check: string;
+  cluster_states: Record<string, string>;
+}
+
+export interface FailoverEvent {
+  id: string;
+  type: string;
+  source_cluster: string;
+  target_cluster: string;
+  reason: string;
+  nodes_affected?: string[];
+  duration_seconds: number;
+  data_loss: boolean;
+  status: string;
+  timestamp: string;
+}
+
+// ─── Backup & Restore ───────────────────────────────────────────────────────
+
+export interface BackupStatus {
+  last_backup?: BackupInfo;
+  next_scheduled?: string;
+  recent_backups?: BackupInfo[];
+  active_restore?: RestoreInfo;
+  repository_size: string;
+  healthy: boolean;
+}
+
+export interface BackupInfo {
+  id: string;
+  cluster_name: string;
+  type: string;
+  status: string;
+  size: string;
+  duration_seconds: number;
+  buckets: string[];
+  start_time: string;
+  end_time?: string;
+  error?: string;
+}
+
+export interface RestoreInfo {
+  id: string;
+  backup_id: string;
+  target_cluster: string;
+  status: string;
+  progress: number;
+  buckets: string[];
+  start_time: string;
+  error?: string;
+}
+
+// ─── Data Migration ─────────────────────────────────────────────────────────
+
+export interface MigrationStatus {
+  id: string;
+  source_cluster: string;
+  target_cluster: string;
+  source_bucket: string;
+  target_bucket: string;
+  status: string;
+  total_docs: number;
+  migrated_docs: number;
+  failed_docs: number;
+  progress: number;
+  bytes_transferred: number;
+  docs_per_sec: number;
+  start_time: string;
+  estimated_end?: string;
+  errors?: string[];
+}
+
+// ─── AI Analysis ────────────────────────────────────────────────────────────
+
+export interface AIInsight {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  summary: string;
+  details?: string;
+  suggestions?: string[];
+  related_logs?: string[];
+  cluster?: string;
+  confidence: number;
+  timestamp: string;
+}
+
+// ─── Dashboard State ────────────────────────────────────────────────────────
+
 export interface DashboardState {
   clusters: Record<string, ClusterMetrics>;
   source_cluster: ClusterMetrics;
@@ -120,6 +240,11 @@ export interface DashboardState {
   storm_metrics: StormMetrics;
   upgrade_status: UpgradeStatus;
   alerts: Alert[];
+  regions?: RegionStatus[];
+  failover_status?: FailoverStatus;
+  backup_status?: BackupStatus;
+  migration_status?: MigrationStatus;
+  ai_insights?: AIInsight[];
   timestamp: string;
 }
 

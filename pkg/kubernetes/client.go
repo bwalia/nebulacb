@@ -24,6 +24,13 @@ func NewK8sClient(namespace, kubeconfig string) *K8sClient {
 	}
 }
 
+// SetNamespace updates the namespace used for subsequent operations.
+func (k *K8sClient) SetNamespace(ns string) {
+	if ns != "" {
+		k.namespace = ns
+	}
+}
+
 // GetPods lists pods in the namespace matching a label selector.
 func (k *K8sClient) GetPods(ctx context.Context, labelSelector string) ([]PodInfo, error) {
 	args := []string{"get", "pods", "-n", k.namespace, "-l", labelSelector, "-o", "json"}
@@ -119,6 +126,24 @@ func (k *K8sClient) ExecInPod(ctx context.Context, podName string, command []str
 		return "", fmt.Errorf("exec in %s: %s: %w", podName, string(out), err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// PatchCouchbaseCluster patches the CouchbaseCluster CR image to trigger a rolling upgrade.
+func (k *K8sClient) PatchCouchbaseCluster(ctx context.Context, clusterName, targetVersion string) error {
+	patch := fmt.Sprintf(`{"spec":{"image":"couchbase/server:%s"}}`, targetVersion)
+	args := []string{"patch", "couchbasecluster", clusterName, "-n", k.namespace,
+		"--type", "merge", "-p", patch}
+	if k.kubeconfig != "" {
+		args = append([]string{"--kubeconfig", k.kubeconfig}, args...)
+	}
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("patch couchbasecluster %s: %s: %w", clusterName, string(out), err)
+	}
+	log.Printf("[K8s] Patched CouchbaseCluster %s to version %s", clusterName, targetVersion)
+	return nil
 }
 
 // PodInfo holds basic pod metadata.

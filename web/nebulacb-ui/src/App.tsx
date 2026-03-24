@@ -7,7 +7,10 @@ import { LoadPanel } from './components/LoadPanel';
 import { AlertPanel } from './components/AlertPanel';
 import { ControlPanel } from './components/ControlPanel';
 import { LoginPage } from './components/LoginPage';
-import { Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus } from './types';
+import {
+  Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus,
+  RegionStatus, FailoverStatus, BackupStatus, MigrationStatus, AIInsight,
+} from './types';
 import './App.css';
 
 const emptyCluster: ClusterMetrics = {
@@ -56,7 +59,7 @@ function App() {
       setAuthChecked(true);
     }).catch(() => {
       setAuthChecked(true);
-      setAuthenticated(true); // If can't reach server, show dashboard (will fail gracefully)
+      setAuthenticated(true);
     });
   }, []);
 
@@ -93,9 +96,12 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
 
   const handleCommand = useCallback(async (cmd: Command) => {
     try {
-      await apiCommand(cmd);
+      const result = await apiCommand(cmd);
+      if (result.status === 'error') {
+        alert(`Command failed: ${result.message}`);
+      }
     } catch (e) {
-      console.error(`[CMD] ${cmd.action} failed:`, e);
+      alert(`Command failed: ${e}`);
     }
   }, []);
 
@@ -107,23 +113,27 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
   const storm = state?.storm_metrics || emptyStorm;
   const upgrade = state?.upgrade_status || emptyUpgrade;
   const alerts = state?.alerts || [];
+  const regions = state?.regions || [];
+  const failoverStatus = state?.failover_status;
+  const backupStatus = state?.backup_status;
+  const migrationStatus = state?.migration_status;
+  const aiInsights = state?.ai_insights || [];
   const upgrading = upgrade.phase === 'upgrading' || upgrade.phase === 'rebalancing';
 
-  // Build ordered cluster list: source first, target second, then extras
+  // Build ordered cluster list
   const clusterEntries = Object.entries(clusters);
   const sortedClusters = [
     ...clusterEntries.filter(([, c]) => c.cluster_name === source.cluster_name && source.cluster_name),
     ...clusterEntries.filter(([, c]) => c.cluster_name === target.cluster_name && target.cluster_name && c.cluster_name !== source.cluster_name),
     ...clusterEntries.filter(([, c]) => c.cluster_name !== source.cluster_name && c.cluster_name !== target.cluster_name),
   ];
-  // Deduplicate
   const seen = new Set<string>();
   const uniqueClusters = sortedClusters.filter(([name]) => {
     if (seen.has(name)) return false;
     seen.add(name);
     return true;
   });
-  const clusterCount = uniqueClusters.length || 2; // fallback for source/target
+  const clusterCount = uniqueClusters.length || 2;
 
   return (
     <div className="app">
@@ -132,7 +142,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         <div className="header-left">
           <span className="logo-icon">&#x25C8;</span>
           <span className="logo-text">NebulaCB</span>
-          <span className="tagline">Migration &amp; Upgrade Mission Control</span>
+          <span className="tagline">Complete Couchbase Management Platform</span>
         </div>
         <div className="header-right">
           <span className={`conn-badge ${connected ? 'live' : 'off'}`}>
@@ -141,7 +151,17 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           {clusterCount > 0 && (
             <span className="cluster-count-badge">{clusterCount} CLUSTERS</span>
           )}
+          {regions.length > 0 && (
+            <span className="cluster-count-badge" style={{ background: '#1a4a1a', color: '#00ff88' }}>
+              {regions.length} REGIONS
+            </span>
+          )}
           {upgrading && <span className="upgrade-badge-header">UPGRADE IN PROGRESS</span>}
+          {migrationStatus && migrationStatus.status === 'running' && (
+            <span className="upgrade-badge-header" style={{ background: '#1a2a4a' }}>
+              MIGRATING {migrationStatus.progress.toFixed(0)}%
+            </span>
+          )}
           <span className="header-time">
             {state?.timestamp ? new Date(state.timestamp).toLocaleTimeString() : '--:--:--'}
           </span>
@@ -154,6 +174,35 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
       </header>
 
       <main className="main-layout">
+        {/* Region Bar (if multi-region) */}
+        {regions.length > 0 && (
+          <section className="region-bar">
+            <div className="panel-header">
+              <span className="panel-indicator" style={{ backgroundColor: '#00cc88' }} />
+              REGIONS
+            </div>
+            <div className="region-cards">
+              {regions.map((r: RegionStatus) => (
+                <div key={r.name} className={`region-card ${r.status}`}>
+                  <div className="region-name">
+                    {r.display_name || r.name}
+                    {r.primary && <span className="primary-badge">PRIMARY</span>}
+                  </div>
+                  <div className="region-meta">
+                    {r.provider && <span className="region-provider">{r.provider}</span>}
+                    <span className={`region-status-dot ${r.status}`} />
+                    {r.cluster_count} clusters ({r.healthy_clusters} healthy)
+                  </div>
+                  <div className="region-stats">
+                    <span>{r.total_docs?.toLocaleString()} docs</span>
+                    <span>{r.ops_per_sec?.toFixed(0)} ops/s</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Row 1: All Connected Clusters */}
         <section className="clusters-row" style={{
           gridTemplateColumns: `repeat(${Math.min(clusterCount, 3)}, 1fr)`
@@ -180,13 +229,13 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           <XDCRFlowPanel xdcr={xdcr} sourceDocs={source.total_docs} targetDocs={target.total_docs} />
         </section>
 
-        {/* Row 3: Data Loss Proof + Load + Alerts */}
+        {/* Row 3: Data Loss Proof + Load + Alerts + New Panels */}
         <section className="proof-row">
           <div className="proof-col">
             <DataLossProofPanel proof={proof} />
           </div>
           <div className="side-col">
-            {/* Upgrade Progress (if active) */}
+            {/* Upgrade Progress */}
             {upgrade.phase !== 'pending' && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
@@ -214,18 +263,113 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
               </div>
             )}
 
+            {/* Migration Progress */}
+            {migrationStatus && migrationStatus.status === 'running' && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#00aaff' }} />
+                  MIGRATION: {migrationStatus.source_cluster} &rarr; {migrationStatus.target_cluster}
+                </div>
+                <div className="panel-body">
+                  <div className="upgrade-phase" style={{ color: '#00aaff' }}>
+                    {migrationStatus.status.toUpperCase()} ({migrationStatus.progress.toFixed(1)}%)
+                  </div>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${migrationStatus.progress}%` }} />
+                  </div>
+                  <div className="upgrade-nodes">
+                    {migrationStatus.migrated_docs?.toLocaleString()}/{migrationStatus.total_docs?.toLocaleString()} docs
+                    | {migrationStatus.docs_per_sec?.toFixed(0)} docs/s
+                    {migrationStatus.failed_docs > 0 && (
+                      <span style={{ color: '#ff4444' }}> | {migrationStatus.failed_docs} failed</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HA / Failover Status */}
+            {failoverStatus && failoverStatus.auto_failover_enabled && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff8800' }} />
+                  HA / FAILOVER
+                </div>
+                <div className="panel-body" style={{ fontSize: 11 }}>
+                  <div>Mode: <span style={{ color: '#00aaff' }}>{failoverStatus.mode}</span></div>
+                  {failoverStatus.primary_cluster && (
+                    <div>Primary: <span style={{ color: '#00ff88' }}>{failoverStatus.primary_cluster}</span></div>
+                  )}
+                  {failoverStatus.cluster_states && Object.entries(failoverStatus.cluster_states).map(([name, st]) => (
+                    <div key={name} style={{ color: st === 'active' ? '#00ff88' : st === 'failed' ? '#ff4444' : '#aaa' }}>
+                      {name}: {st}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Backup Status */}
+            {backupStatus && backupStatus.last_backup && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#00cc88' }} />
+                  BACKUP
+                </div>
+                <div className="panel-body" style={{ fontSize: 11 }}>
+                  <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#00ff88' : '#ff4444' }}>
+                    {backupStatus.last_backup.status}
+                  </span> ({backupStatus.last_backup.cluster_name})</div>
+                  {backupStatus.last_backup.duration_seconds > 0 && (
+                    <div>Duration: {backupStatus.last_backup.duration_seconds.toFixed(1)}s</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Insights */}
+            {aiInsights.length > 0 && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff88ff' }} />
+                  AI INSIGHTS ({aiInsights.length})
+                </div>
+                <div className="panel-body" style={{ fontSize: 11, maxHeight: 120, overflowY: 'auto' }}>
+                  {aiInsights.slice(-3).reverse().map((insight: AIInsight) => (
+                    <div key={insight.id} style={{
+                      padding: '4px 0',
+                      borderBottom: '1px solid #333',
+                      color: insight.severity === 'critical' ? '#ff4444' :
+                        insight.severity === 'warning' ? '#ffaa00' : '#aaa'
+                    }}>
+                      <div style={{ fontWeight: 'bold' }}>{insight.title}</div>
+                      <div>{insight.summary?.substring(0, 100)}...</div>
+                      {insight.suggestions && insight.suggestions.length > 0 && (
+                        <div style={{ color: '#00aaff', fontSize: 10 }}>
+                          Suggestion: {insight.suggestions[0]}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <LoadPanel metrics={storm} history={stormHistory} />
             <AlertPanel alerts={alerts} />
           </div>
         </section>
 
         {/* Control Bar */}
-        <ControlPanel onCommand={handleCommand} />
+        <ControlPanel
+          onCommand={handleCommand}
+          clusters={clusters}
+        />
       </main>
 
       <footer className="footer">
-        <span>NebulaCB v0.1.0</span>
-        <span>Upgrade Fearlessly. Validate Everything. Lose Nothing.</span>
+        <span>NebulaCB v1.0</span>
+        <span>The Complete Couchbase Management Platform — Upgrade · Migrate · Monitor · Protect</span>
       </footer>
     </div>
   );

@@ -41,7 +41,11 @@ func NewValidator(cfg models.ValidatorConfig, source, target *couchbase.Client, 
 
 // StartContinuous begins continuous validation.
 func (v *Validator) StartContinuous(ctx context.Context) error {
-	ctx, v.cancel = context.WithCancel(ctx)
+	if v.source == nil || v.target == nil {
+		return fmt.Errorf("no Couchbase SDK connection — continuous validation requires direct cluster access")
+	}
+	// Use a detached context so validation outlives the HTTP request
+	ctx, v.cancel = context.WithCancel(context.Background())
 	log.Printf("[Validator] Starting continuous validation (interval: %s)", v.config.ScanInterval)
 
 	go v.continuousLoop(ctx)
@@ -56,8 +60,19 @@ func (v *Validator) Stop() {
 	log.Println("[Validator] Stopped")
 }
 
+// CanAudit checks whether the validator has the required SDK connections.
+func (v *Validator) CanAudit() error {
+	if v.source == nil || v.target == nil {
+		return fmt.Errorf("no Couchbase SDK connection — audit requires direct cluster access")
+	}
+	return nil
+}
+
 // RunFullAudit performs a single full data audit.
 func (v *Validator) RunFullAudit(ctx context.Context) (models.IntegrityResult, error) {
+	if v.source == nil || v.target == nil {
+		return models.IntegrityResult{Status: "fail"}, fmt.Errorf("no Couchbase SDK connection — audit requires direct cluster access")
+	}
 	log.Println("[Validator] Starting full data audit...")
 	start := time.Now()
 

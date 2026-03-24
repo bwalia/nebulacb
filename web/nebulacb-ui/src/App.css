@@ -467,3 +467,121 @@ body {
   .control-buttons { flex-direction: column; }
   .login-card { width: 90%; padding: 24px; }
 }
+
+/* ===== UPGRADE MODAL ===== */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-dialog {
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 12px; width: 440px; max-width: 95vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(0,170,255,0.1);
+}
+.modal-header {
+  font-size: 1rem; font-weight: 700; letter-spacing: 1px;
+  padding: 20px 24px 12px; color: var(--blue);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.modal-icon { font-size: 1.3rem; }
+.modal-body { padding: 20px 24px; }
+.modal-field { margin-bottom: 16px; }
+.modal-label {
+  display: block; font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 6px;
+}
+.modal-select {
+  width: 100%; padding: 10px 12px; border-radius: 6px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-primary); font-family: inherit; font-size: 0.85rem;
+  cursor: pointer; outline: none; transition: border-color 0.2s;
+}
+.modal-select:focus { border-color: var(--blue); }
+.modal-select option { background: var(--bg-card); color: var(--text-primary); }
+.modal-current-version {
+  font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;
+  padding: 8px 12px; background: var(--bg-card); border-radius: 6px;
+}
+.version-tag {
+  color: var(--blue); font-weight: 700;
+}
+.modal-warning {
+  font-size: 0.8rem; color: var(--amber); padding: 8px 12px;
+  background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.2);
+  border-radius: 6px; margin-top: 4px;
+}
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px; border-top: 1px solid var(--border);
+}
+.modal-btn {
+  padding: 10px 20px; border-radius: 6px; border: none;
+  font-family: inherit; font-size: 0.8rem; font-weight: 600;
+  letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s;
+}
+.modal-btn-cancel {
+  background: var(--bg-card); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.modal-btn-cancel:hover { background: var(--border); color: var(--text-primary); }
+.modal-btn-confirm {
+  background: var(--blue); color: #fff;
+}
+.modal-btn-confirm:hover { filter: brightness(1.2); }
+.modal-btn-confirm:disabled {
+  opacity: 0.4; cursor: not-allowed; filter: none;
+}
+
+/* ===== REGION BAR ===== */
+.region-bar {
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px;
+}
+.region-cards {
+  display: flex; gap: 12px; overflow-x: auto; padding: 8px 0;
+}
+.region-card {
+  flex: 0 0 auto; min-width: 180px;
+  padding: 10px 14px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 8px;
+  border-left: 3px solid var(--green);
+  transition: all 0.2s;
+}
+.region-card.degraded { border-left-color: var(--amber); }
+.region-card.down { border-left-color: var(--red); }
+.region-card:hover { border-color: var(--blue); }
+.region-name {
+  font-size: 0.85rem; font-weight: 700; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.primary-badge {
+  font-size: 0.55rem; font-weight: 700; letter-spacing: 1px;
+  color: var(--green); background: rgba(0,255,136,0.1);
+  padding: 2px 6px; border-radius: 3px;
+}
+.region-meta {
+  font-size: 0.7rem; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+.region-provider {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 1px;
+  color: var(--blue); background: rgba(0,170,255,0.1);
+  padding: 1px 5px; border-radius: 3px; text-transform: uppercase;
+}
+.region-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+}
+.region-status-dot.degraded { background: var(--amber); }
+.region-status-dot.down { background: var(--red); }
+.region-stats {
+  font-size: 0.7rem; color: var(--text-secondary);
+  display: flex; gap: 12px;
+}
+
+/* Edition tag */
+.edition-tag {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 1px;
+}

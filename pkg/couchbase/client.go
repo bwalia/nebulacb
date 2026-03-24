@@ -40,6 +40,14 @@ func NewClient(cfg models.ClusterConfig) (*Client, error) {
 	if !strings.Contains(connStr, "://") {
 		connStr = "couchbase://" + connStr
 	}
+	// The couchbase:// scheme does not support port in the host (e.g. couchbase://host:8091).
+	// Strip the management port if present; the SDK auto-discovers the KV port.
+	if strings.HasPrefix(connStr, "couchbase://") {
+		hostPart := strings.TrimPrefix(connStr, "couchbase://")
+		if h, _, found := strings.Cut(hostPart, ":"); found {
+			connStr = "couchbase://" + h
+		}
+	}
 
 	cluster, err := gocb.Connect(connStr, opts)
 	if err != nil {

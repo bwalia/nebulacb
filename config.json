@@ -1,7 +1,7 @@
 {
   "server": {
     "host": "0.0.0.0",
-    "port": 8080,
+    "port": 8899,
     "auth": {
       "enabled": true,
       "username": "admin",
@@ -9,20 +9,24 @@
     }
   },
   "source": {
-    "name": "source",
+    "name": "cb-local",
     "host": "localhost:8091",
     "username": "Administrator",
-    "password": "password",
-    "bucket": "default",
-    "role": "source"
+    "password": "password123",
+    "bucket": "xdcr-test",
+    "role": "source",
+    "region": "us-east-1",
+    "platform": "native"
   },
   "target": {
-    "name": "target",
+    "name": "cb-test",
     "host": "localhost:9091",
     "username": "Administrator",
-    "password": "password",
-    "bucket": "default",
-    "role": "target"
+    "password": "password123",
+    "bucket": "xdcr-test",
+    "role": "target",
+    "region": "us-east-1",
+    "platform": "native"
   },
   "storm": {
     "writes_per_second": 1000,
@@ -40,9 +44,12 @@
   },
   "upgrade": {
     "source_version": "7.2.2",
-    "target_version": "7.6.0",
+    "target_version": "7.6.5",
     "namespace": "couchbase",
-    "cluster_name": "cb-cluster",
+    "cluster_name": "cb-local",
+    "kubeconfig": "/Users/balinderwalia/.kube/k3s0.yaml",
+    "helm_release": "couchbase-operator",
+    "helm_chart": "couchbase/couchbase-operator",
     "max_unavailable": 1
   },
   "xdcr": {
@@ -60,5 +67,58 @@
     "enabled": true,
     "endpoint": "/metrics",
     "port": 9090
+  },
+  "regions": [
+    {
+      "name": "us-east-1",
+      "display_name": "US East (Virginia)",
+      "provider": "aws",
+      "clusters": ["cb-local"],
+      "primary": true
+    },
+    {
+      "name": "us-west-2",
+      "display_name": "US West (Oregon)",
+      "provider": "aws",
+      "clusters": ["cb-test"],
+      "primary": false
+    }
+  ],
+  "failover": {
+    "enabled": true,
+    "auto_failover": false,
+    "failover_timeout": 120000000000,
+    "max_auto_failovers": 1,
+    "health_check_interval": 10000000000,
+    "recovery_mode": "manual",
+    "preserve_data": true
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "repository": "/tmp/nebulacb-backups",
+    "retention_days": 7,
+    "compression": true,
+    "encryption": false,
+    "timeout": 1800000000000
+  },
+  "migration": {
+    "workers": 8,
+    "batch_size": 1000,
+    "retry_attempts": 3,
+    "validate_after": true
+  },
+  "ai": {
+    "enabled": false,
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "api_key": "",
+    "max_tokens": 4096,
+    "auto_analyze": false
+  },
+  "docker": {
+    "enabled": false,
+    "host": "unix:///var/run/docker.sock",
+    "network": "nebulacb-net"
   }
 }
