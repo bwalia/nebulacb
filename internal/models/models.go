@@ -21,6 +21,7 @@ type ClusterConfig struct {
 	Edition    string `json:"edition,omitempty" yaml:"edition,omitempty"`     // community, enterprise
 	Platform   string `json:"platform,omitempty" yaml:"platform,omitempty"` // kubernetes, docker, native
 	Namespace  string `json:"namespace,omitempty" yaml:"namespace,omitempty"` // k8s namespace for this cluster
+	KVPort     int    `json:"kv_port,omitempty" yaml:"kv_port,omitempty"`   // override SDK KV port (e.g. NodePort 30210)
 }
 
 // Document represents a generated test document with tracking metadata.

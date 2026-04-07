@@ -1,0 +1,59 @@
+---
+# NodePort service for cb-local (source cluster)
+# Exposes Couchbase management (8091) and KV (11210) ports externally
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-local-nodeport
+  namespace: couchbase
+  labels:
+    app: couchbase
+    cluster: cb-local
+spec:
+  type: NodePort
+  selector:
+    app: couchbase
+    couchbase_cluster: cb-local
+  ports:
+    - name: mgmt
+      port: 8091
+      targetPort: 8091
+      nodePort: 30091
+    - name: kv
+      port: 11210
+      targetPort: 11210
+      nodePort: 30210
+    - name: query
+      port: 8093
+      targetPort: 8093
+      nodePort: 30093
+
+---
+# NodePort service for cb-test (target cluster)
+# Exposes Couchbase management (8091) and KV (11210) ports externally
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-test-nodeport
+  namespace: couchbase-test
+  labels:
+    app: couchbase
+    cluster: cb-test
+spec:
+  type: NodePort
+  selector:
+    app: couchbase
+    couchbase_cluster: cb-test
+  ports:
+    - name: mgmt
+      port: 8091
+      targetPort: 8091
+      nodePort: 31091
+    - name: kv
+      port: 11210
+      targetPort: 11210
+      nodePort: 31210
+    - name: query
+      port: 8093
+      targetPort: 8093
+      nodePort: 31093

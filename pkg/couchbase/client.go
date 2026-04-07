@@ -36,17 +36,25 @@ func NewClient(cfg models.ClusterConfig) (*Client, error) {
 		},
 	}
 
-	connStr := cfg.Host
-	if !strings.Contains(connStr, "://") {
-		connStr = "couchbase://" + connStr
+	// Build connection string.
+	// Extract hostname (strip scheme and port if present).
+	hostOnly := cfg.Host
+	if strings.Contains(hostOnly, "://") {
+		parts := strings.SplitN(hostOnly, "://", 2)
+		hostOnly = parts[1]
 	}
-	// The couchbase:// scheme does not support port in the host (e.g. couchbase://host:8091).
-	// Strip the management port if present; the SDK auto-discovers the KV port.
-	if strings.HasPrefix(connStr, "couchbase://") {
-		hostPart := strings.TrimPrefix(connStr, "couchbase://")
-		if h, _, found := strings.Cut(hostPart, ":"); found {
-			connStr = "couchbase://" + h
-		}
+	if h, _, found := strings.Cut(hostOnly, ":"); found {
+		hostOnly = h
+	}
+
+	// When KVPort is set (external/NodePort access), connect via the KV port
+	// and use ?network=external so the SDK reads alternateAddresses from the
+	// cluster map instead of internal pod IPs.
+	var connStr string
+	if cfg.KVPort > 0 {
+		connStr = fmt.Sprintf("couchbase://%s:%d?network=external", hostOnly, cfg.KVPort)
+	} else {
+		connStr = "couchbase://" + hostOnly
 	}
 
 	cluster, err := gocb.Connect(connStr, opts)

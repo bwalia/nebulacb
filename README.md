@@ -141,25 +141,255 @@ make ui
 
 ---
 
-## Docker Compose (Easiest Local Setup)
+## Local Development Setup
 
-Spin up NebulaCB with two Couchbase clusters locally:
+This section walks through setting up a complete local environment from scratch.
+
+### Option A: Docker Compose (quickest)
+
+#### 1. Start the containers
 
 ```bash
 docker-compose up -d
 ```
 
-This starts:
-- **NebulaCB** on port 8080 (API + UI) and 9090 (metrics)
-- **Couchbase Source** (v7.2.2) on port 8091
-- **Couchbase Target** (v7.6.0) on port 9091
+This starts two Couchbase clusters and NebulaCB:
+- **Couchbase Source** (v7.2.2) — `http://localhost:8091`
+- **Couchbase Target** (v7.6.0) — `http://localhost:9091`
+- **NebulaCB** — `http://localhost:8080`
 
-Open `http://localhost:8080` in your browser.
+#### 2. Initialize the Couchbase clusters
+
+After the containers start, the Couchbase nodes need to be initialized. Open each Couchbase UI and complete the setup wizard, or use the REST API:
+
+**Source cluster (localhost:8091):**
+
+```bash
+# Initialize the node
+curl -X POST http://localhost:8091/nodes/self/controller/settings \
+  -d 'data_path=/opt/couchbase/var/lib/couchbase/data' \
+  -d 'index_path=/opt/couchbase/var/lib/couchbase/data'
+
+# Set up services
+curl -X POST http://localhost:8091/node/controller/setupServices \
+  -d 'services=kv,n1ql,index'
+
+# Set admin credentials
+curl -X POST http://localhost:8091/settings/web \
+  -d 'port=8091' \
+  -d 'username=Administrator' \
+  -d 'password=password123'
+
+# Create the test bucket
+curl -X POST http://localhost:8091/pools/default/buckets \
+  -u Administrator:password123 \
+  -d 'name=xdcr-test' \
+  -d 'ramQuota=256' \
+  -d 'bucketType=couchbase'
+```
+
+**Target cluster (localhost:9091):**
+
+```bash
+curl -X POST http://localhost:9091/nodes/self/controller/settings \
+  -d 'data_path=/opt/couchbase/var/lib/couchbase/data' \
+  -d 'index_path=/opt/couchbase/var/lib/couchbase/data'
+
+curl -X POST http://localhost:9091/node/controller/setupServices \
+  -d 'services=kv,n1ql,index'
+
+curl -X POST http://localhost:9091/settings/web \
+  -d 'port=8091' \
+  -d 'username=Administrator' \
+  -d 'password=password123'
+
+curl -X POST http://localhost:9091/pools/default/buckets \
+  -u Administrator:password123 \
+  -d 'name=xdcr-test' \
+  -d 'ramQuota=256' \
+  -d 'bucketType=couchbase'
+```
+
+#### 3. Set up XDCR replication
+
+```bash
+# Create a remote cluster reference on the source pointing to the target
+curl -X POST http://localhost:8091/pools/default/remoteClusters \
+  -u Administrator:password123 \
+  -d 'name=cb-test' \
+  -d 'hostname=couchbase-target:8091' \
+  -d 'username=Administrator' \
+  -d 'password=password123'
+
+# Create the XDCR replication (source bucket → target bucket)
+curl -X POST http://localhost:8091/controller/createReplication \
+  -u Administrator:password123 \
+  -d 'fromBucket=xdcr-test' \
+  -d 'toCluster=cb-test' \
+  -d 'toBucket=xdcr-test' \
+  -d 'replicationType=continuous'
+```
+
+> **Note:** In docker-compose the target hostname is `couchbase-target` (the Docker service name). From outside Docker, use `localhost:9091`.
+
+#### 4. Open the dashboard
+
+Go to `http://localhost:8080` and log in with `admin` / `nebulacb`.
+
+#### 5. Run the load test
+
+```bash
+# Use Docker config (source=localhost:8091, target=localhost:9091)
+go run ./cmd/xdcr-loadtest/ -rate 100 -duration 10m
+```
 
 To tear down:
 
 ```bash
 docker-compose down
+# Add -v to also remove persistent Couchbase data:
+docker-compose down -v
+```
+
+---
+
+### Option B: Kubernetes (k3s) with NodePort
+
+If your Couchbase clusters are running in Kubernetes via the Couchbase Autonomous Operator:
+
+#### 1. Expose clusters externally
+
+Patch the Couchbase Operator to expose external addresses:
+
+```bash
+# Source cluster
+kubectl patch couchbasecluster cb-local -n couchbase --type merge -p \
+  '{"spec":{"networking":{"exposedFeatures":["client","admin"],"exposedFeatureServiceType":"NodePort","adminConsoleServiceType":"NodePort"}}}'
+
+# Target cluster
+kubectl patch couchbasecluster cb-test -n couchbase-test --type merge -p \
+  '{"spec":{"networking":{"exposedFeatures":["client","admin"],"exposedFeatureServiceType":"NodePort","adminConsoleServiceType":"NodePort"}}}'
+```
+
+The Operator creates per-pod NodePort services (e.g. `cb-local-0003`, `cb-test-0002`) with management, KV, and query ports.
+
+#### 2. Find the assigned ports and node IP
+
+```bash
+# Find which node the pods run on
+kubectl get pods -n couchbase -o wide
+kubectl get pods -n couchbase-test -o wide
+
+# Get the per-pod NodePort services
+kubectl get svc -n couchbase -l couchbase_cluster=cb-local
+kubectl get svc -n couchbase-test -l couchbase_cluster=cb-test
+```
+
+Look for the `NodePort` services (not the headless `ClusterIP` ones). Note the ports for `mgmt` (8091) and `kv` (11210).
+
+> **Important:** If the services have `externalTrafficPolicy: Local`, NodePort only works on the node where the pod runs. Use that node's IP.
+
+#### 3. Verify the cluster map has external addresses
+
+```bash
+curl -s -u Administrator:password123 http://<NODE_IP>:<MGMT_NODEPORT>/pools/default \
+  | python3 -c "import sys,json; [print(n.get('alternateAddresses',{})) for n in json.load(sys.stdin)['nodes']]"
+```
+
+You should see `external.hostname` and `external.ports.kv` in the output.
+
+#### 4. Update config.json
+
+```jsonc
+{
+  "source": {
+    "name": "cb-local",
+    "host": "<NODE_IP>:<MGMT_NODEPORT>",
+    "username": "Administrator",
+    "password": "password123",
+    "bucket": "xdcr-test",
+    "platform": "kubernetes",
+    "namespace": "couchbase",
+    "kv_port": <KV_NODEPORT>
+  },
+  "target": {
+    "name": "cb-test",
+    "host": "<NODE_IP>:<MGMT_NODEPORT>",
+    "username": "Administrator",
+    "password": "password123",
+    "bucket": "xdcr-test",
+    "platform": "kubernetes",
+    "namespace": "couchbase-test",
+    "kv_port": <KV_NODEPORT>
+  }
+}
+```
+
+The `kv_port` field tells the SDK to connect via the KV NodePort and use `?network=external` so it reads the alternate addresses from the cluster map instead of internal pod IPs.
+
+#### 5. Create the test bucket (if it doesn't exist)
+
+```bash
+curl -X POST http://<NODE_IP>:<MGMT_NODEPORT>/pools/default/buckets \
+  -u Administrator:password123 \
+  -d 'name=xdcr-test' \
+  -d 'ramQuota=256' \
+  -d 'bucketType=couchbase'
+```
+
+#### 6. Set up XDCR replication
+
+XDCR is configured between the clusters inside Kubernetes. Use the Couchbase UI or REST API on the source cluster:
+
+```bash
+# Create remote cluster reference (use internal k8s DNS)
+curl -X POST http://<NODE_IP>:<SOURCE_MGMT_NODEPORT>/pools/default/remoteClusters \
+  -u Administrator:password123 \
+  -d 'name=cb-test' \
+  -d 'hostname=cb-test.couchbase-test.svc:8091' \
+  -d 'username=Administrator' \
+  -d 'password=password123'
+
+# Create replication
+curl -X POST http://<NODE_IP>:<SOURCE_MGMT_NODEPORT>/controller/createReplication \
+  -u Administrator:password123 \
+  -d 'fromBucket=xdcr-test' \
+  -d 'toCluster=cb-test' \
+  -d 'toBucket=xdcr-test' \
+  -d 'replicationType=continuous'
+```
+
+#### 7. Start NebulaCB and run the load test
+
+```bash
+# Start the server
+make run
+
+# In another terminal, run the XDCR load test
+go run ./cmd/xdcr-loadtest/ -rate 100 -duration 10m
+
+# Open dashboard
+open http://localhost:8899
+```
+
+---
+
+### Option C: Native Go server with port-forwarding (no NodePort)
+
+If you don't want to expose NodePorts, NebulaCB can auto-forward ports via kubectl:
+
+Set `platform: "kubernetes"` and `namespace` in config.json, and provide a `kubeconfig` path. NebulaCB will automatically discover Couchbase pods and set up `kubectl port-forward` on startup. No `kv_port` needed — the SDK connects to `localhost` directly.
+
+```jsonc
+{
+  "kubeconfig": "~/.kube/config",
+  "source": {
+    "name": "cb-local",
+    "host": "localhost:8091",
+    "platform": "kubernetes",
+    "namespace": "couchbase"
+  }
+}
 ```
 
 ---

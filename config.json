@@ -11,25 +11,27 @@
   "kubeconfig": "/Users/balinderwalia/.kube/k3s0.yaml",
   "source": {
     "name": "cb-local",
-    "host": "localhost:8091",
+    "host": "192.168.1.193:32451",
     "username": "Administrator",
     "password": "password123",
     "bucket": "xdcr-test",
     "role": "source",
     "region": "us-east-1",
     "platform": "kubernetes",
-    "namespace": "couchbase"
+    "namespace": "couchbase",
+    "kv_port": 32419
   },
   "target": {
     "name": "cb-test",
-    "host": "localhost:9091",
+    "host": "192.168.1.193:30953",
     "username": "Administrator",
     "password": "password123",
     "bucket": "xdcr-test",
     "role": "target",
     "region": "us-east-1",
     "platform": "kubernetes",
-    "namespace": "couchbase-test"
+    "namespace": "couchbase-test",
+    "kv_port": 31942
   },
   "storm": {
     "writes_per_second": 1000,
