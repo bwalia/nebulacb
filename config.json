@@ -8,6 +8,7 @@
       "password": "nebulacb"
     }
   },
+  "kubeconfig": "/Users/balinderwalia/.kube/k3s0.yaml",
   "source": {
     "name": "cb-local",
     "host": "localhost:8091",
@@ -16,7 +17,8 @@
     "bucket": "xdcr-test",
     "role": "source",
     "region": "us-east-1",
-    "platform": "native"
+    "platform": "kubernetes",
+    "namespace": "couchbase"
   },
   "target": {
     "name": "cb-test",
@@ -26,7 +28,8 @@
     "bucket": "xdcr-test",
     "role": "target",
     "region": "us-east-1",
-    "platform": "native"
+    "platform": "kubernetes",
+    "namespace": "couchbase-test"
   },
   "storm": {
     "writes_per_second": 1000,

@@ -12,6 +12,7 @@ import (
 	"github.com/balinderwalia/nebulacb/internal/ai"
 	"github.com/balinderwalia/nebulacb/internal/api"
 	"github.com/balinderwalia/nebulacb/internal/backup"
+	"github.com/balinderwalia/nebulacb/internal/models"
 	"github.com/balinderwalia/nebulacb/internal/config"
 	"github.com/balinderwalia/nebulacb/internal/failover"
 	"github.com/balinderwalia/nebulacb/internal/metrics"
@@ -55,6 +56,18 @@ func main() {
 
 	// Build the cluster registry (source/target + env vars + config file clusters)
 	allClusters := cfg.GetClusters()
+
+	// Auto port-forward for Kubernetes-hosted clusters
+	var pfManager *kubernetes.PortForwardManager
+	kubeconfig := cfg.Kubeconfig
+	if kubeconfig == "" {
+		kubeconfig = cfg.Upgrade.Kubeconfig
+	}
+	if kubeconfig != "" {
+		pfManager = kubernetes.NewPortForwardManager(kubeconfig)
+		allClusters = pfManager.SetupClusters(ctx, allClusters)
+	}
+
 	log.Printf("[Main] Cluster registry: %d clusters", len(allClusters))
 	for name, cc := range allClusters {
 		log.Printf("[Main]   %s → %s (role=%s bucket=%s region=%s platform=%s edition=%s)",
@@ -82,14 +95,16 @@ func main() {
 	stormGen := storm.NewGenerator(cfg.Storm, sourceClient, collector)
 	// If SDK client is not available, set up REST fallback for storm generator
 	if sourceClient == nil {
-		sourceCfg := cfg.Source
-		if sourceCfg.Host == "" {
-			for _, cc := range allClusters {
-				if cc.Role == "source" {
-					sourceCfg = cc
-					break
-				}
+		// Prefer port-forwarded addresses from allClusters over raw config
+		var sourceCfg models.ClusterConfig
+		for _, cc := range allClusters {
+			if cc.Role == "source" {
+				sourceCfg = cc
+				break
 			}
+		}
+		if sourceCfg.Host == "" {
+			sourceCfg = cfg.Source
 		}
 		if sourceCfg.Host != "" {
 			restClient := couchbase.NewRESTClient(sourceCfg)
@@ -98,8 +113,47 @@ func main() {
 		}
 	}
 	orch := orchestrator.NewOrchestrator(cfg.Upgrade, k8sClient, collector)
-	xdcrEngine := xdcr.NewEngine(cfg.XDCR, collector)
+
+	// Populate XDCR config with resolved cluster addresses (including port-forwards)
+	xdcrCfg := cfg.XDCR
+	for _, cc := range allClusters {
+		if cc.Role == "source" {
+			xdcrCfg.SourceCluster = cc
+		}
+		if cc.Role == "target" {
+			xdcrCfg.TargetCluster = cc
+		}
+	}
+	if xdcrCfg.SourceCluster.Host == "" {
+		xdcrCfg.SourceCluster = cfg.Source
+	}
+	if xdcrCfg.TargetCluster.Host == "" {
+		xdcrCfg.TargetCluster = cfg.Target
+	}
+	xdcrEngine := xdcr.NewEngine(xdcrCfg, collector)
 	val := validator.NewValidator(cfg.Validator, sourceClient, targetClient, collector, cfg.Storm.KeyPrefix)
+	// Set up REST fallback for validator when SDK is not available
+	if sourceClient == nil || targetClient == nil {
+		var srcCfg, tgtCfg models.ClusterConfig
+		for _, cc := range allClusters {
+			if cc.Role == "source" {
+				srcCfg = cc
+			}
+			if cc.Role == "target" {
+				tgtCfg = cc
+			}
+		}
+		if srcCfg.Host == "" {
+			srcCfg = cfg.Source
+		}
+		if tgtCfg.Host == "" {
+			tgtCfg = cfg.Target
+		}
+		if srcCfg.Host != "" && tgtCfg.Host != "" {
+			val.SetRESTClients(couchbase.NewRESTClient(srcCfg), couchbase.NewRESTClient(tgtCfg))
+			log.Println("[Main] REST fallback configured for validator")
+		}
+	}
 	reporter := reporting.NewEngine(collector, "reports")
 
 	// Multi-cluster monitor (polls all clusters every 2s)
@@ -218,5 +272,8 @@ func main() {
 	regionMgr.Stop()
 	server.Stop()
 	pool.Close()
+	if pfManager != nil {
+		pfManager.Stop()
+	}
 	log.Println("NebulaCB stopped. Goodbye.")
 }

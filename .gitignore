@@ -1,4 +1,6 @@
 bin/
+/nebulacb
+/xdcr-loadtest
 reports/
 web/nebulacb-ui/node_modules/
 web/nebulacb-ui/build/

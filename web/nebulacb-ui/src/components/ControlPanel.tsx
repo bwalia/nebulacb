@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Command, ClusterMetrics } from '../types';
+import { Command, ClusterMetrics, XDCRStatus } from '../types';
 import { getToken } from '../hooks/useWebSocket';
 
 interface Props {
   onCommand: (cmd: Command) => void;
   clusters?: Record<string, ClusterMetrics>;
+  xdcrStatus?: XDCRStatus;
 }
 
 const COUCHBASE_VERSIONS = [
@@ -21,7 +22,11 @@ const buttons = [
   { label: 'Stop Load', action: 'stop_load', icon: '\u23F9', color: '#ff4444', group: 'load' },
   { label: 'Start Upgrade', action: 'start_upgrade', icon: '\uD83D\uDE80', color: '#00aaff', group: 'upgrade' },
   { label: 'Abort Upgrade', action: 'abort_upgrade', icon: '\uD83D\uDED1', color: '#ff4444', group: 'upgrade' },
+  { label: 'Pause XDCR', action: 'pause_xdcr', icon: '\u23F8', color: '#ffaa00', group: 'replication' },
+  { label: 'Resume XDCR', action: 'resume_xdcr', icon: '\u25B6', color: '#00ff88', group: 'replication' },
+  { label: 'Stop XDCR', action: 'stop_xdcr', icon: '\u23F9', color: '#ff4444', group: 'replication' },
   { label: 'Restart XDCR', action: 'restart_xdcr', icon: '\uD83D\uDD01', color: '#00aaff', group: 'replication' },
+  { label: 'XDCR Troubleshoot', action: 'xdcr_troubleshoot', icon: '\uD83D\uDEE0', color: '#ff88ff', group: 'replication' },
   { label: 'Full Audit', action: 'run_audit', icon: '\uD83D\uDD0D', color: '#aa88ff', group: 'validation' },
   { label: 'Inject Failure', action: 'inject_failure', icon: '\uD83D\uDCA5', color: '#ff6600', group: 'chaos' },
   { label: 'AI Analyze', action: 'ai_analyze', icon: '\uD83E\uDDE0', color: '#ff88ff', group: 'ai' },
@@ -34,10 +39,34 @@ function apiBase(): string {
   return window.location.origin;
 }
 
-export const ControlPanel: React.FC<Props> = ({ onCommand, clusters }) => {
+interface DiagnosticCheck {
+  name: string;
+  title: string;
+  status: string;
+  detail: string;
+}
+
+interface DiagnosticsResult {
+  timestamp: string;
+  replication_id: string;
+  overall_status: string;
+  checks: DiagnosticCheck[];
+  delay_windows?: { start: string; end: string; duration: number; cause: string }[];
+  current_status?: {
+    state: string;
+    changes_left: number;
+    docs_processed: number;
+    topology_change: boolean;
+  };
+}
+
+export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showFailoverModal, setShowFailoverModal] = useState(false);
+  const [showXDCRTroubleshoot, setShowXDCRTroubleshoot] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsResult | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState('');
   const [selectedVersion, setSelectedVersion] = useState(COUCHBASE_VERSIONS[0]);
   const [selectedNamespace, setSelectedNamespace] = useState('couchbase');
@@ -68,6 +97,21 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters }) => {
   const effectiveClusters = Object.keys(fetchedClusters).length > 0 ? fetchedClusters : (clusters || {});
   const clusterList = Object.entries(effectiveClusters);
 
+  const fetchDiagnostics = () => {
+    setDiagLoading(true);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${apiBase()}/api/v1/xdcr/diagnostics`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        setDiagnostics(data as DiagnosticsResult);
+        setDiagLoading(false);
+      })
+      .catch(() => setDiagLoading(false));
+  };
+
   const handleButtonClick = (action: string) => {
     if (action === 'start_upgrade') {
       setShowUpgradeModal(true);
@@ -75,6 +119,9 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters }) => {
       setShowBackupModal(true);
     } else if (action === 'manual_failover') {
       setShowFailoverModal(true);
+    } else if (action === 'xdcr_troubleshoot') {
+      setShowXDCRTroubleshoot(true);
+      fetchDiagnostics();
     } else {
       onCommand({ action });
     }
@@ -323,6 +370,204 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters }) => {
                 onClick={handleFailoverSubmit}
               >
                 Execute Failover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* XDCR Troubleshoot Modal */}
+      {showXDCRTroubleshoot && (
+        <div className="modal-overlay" onClick={() => setShowXDCRTroubleshoot(false)}>
+          <div className="modal-dialog" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-icon">{'\uD83D\uDEE0'}</span>
+              XDCR Troubleshoot &amp; Diagnostics
+            </div>
+            <div className="modal-body" style={{ maxHeight: 500, overflowY: 'auto' }}>
+
+              {/* Live XDCR Status */}
+              {xdcrStatus && (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="modal-label" style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>LIVE XDCR STATUS</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <div style={{
+                      background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6,
+                      borderLeft: `3px solid ${xdcrStatus.state === 'Running' ? '#00ff88' : xdcrStatus.state === 'Paused' ? '#ffaa00' : '#ff4444'}`
+                    }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>State</div>
+                      <div style={{ color: xdcrStatus.state === 'Running' ? '#00ff88' : xdcrStatus.state === 'Paused' ? '#ffaa00' : '#ff4444', fontWeight: 700 }}>
+                        {xdcrStatus.state}
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #00aaff' }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Changes Left</div>
+                      <div style={{ color: '#fff', fontWeight: 700 }}>{(xdcrStatus.changes_left || 0).toLocaleString()}</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #aa88ff' }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Docs Processed</div>
+                      <div style={{ color: '#fff', fontWeight: 700 }}>{(xdcrStatus.docs_processed || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #00aaff' }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Replication Lag</div>
+                      <div style={{ color: '#fff', fontWeight: 700 }}>{xdcrStatus.replication_lag_ms?.toFixed(1) || 0}ms</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ffaa00' }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Topology Change</div>
+                      <div style={{ color: xdcrStatus.topology_change ? '#ffaa00' : '#00ff88', fontWeight: 700 }}>
+                        {xdcrStatus.topology_change ? 'ACTIVE' : 'None'}
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ff6600' }}>
+                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Pipeline Restarts</div>
+                      <div style={{ color: '#fff', fontWeight: 700 }}>{xdcrStatus.pipeline_restarts || 0}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Diagnostic Checks */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div className="modal-label" style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>DIAGNOSTIC CHECKS</div>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#00aaff', padding: '4px 12px', fontSize: 11, minWidth: 'auto' } as React.CSSProperties}
+                    onClick={fetchDiagnostics}
+                    disabled={diagLoading}
+                  >
+                    {diagLoading ? 'Running...' : 'Re-run Diagnostics'}
+                  </button>
+                </div>
+
+                {diagLoading && !diagnostics && (
+                  <div style={{ color: '#888', textAlign: 'center', padding: 20 }}>Running diagnostics...</div>
+                )}
+
+                {diagnostics && (
+                  <>
+                    <div style={{
+                      background: diagnostics.overall_status === 'healthy' ? 'rgba(0,255,136,0.1)' :
+                                  diagnostics.overall_status === 'warning' ? 'rgba(255,170,0,0.1)' : 'rgba(255,68,68,0.1)',
+                      border: `1px solid ${diagnostics.overall_status === 'healthy' ? '#00ff88' :
+                               diagnostics.overall_status === 'warning' ? '#ffaa00' : '#ff4444'}`,
+                      borderRadius: 6, padding: '8px 12px', marginBottom: 10, textAlign: 'center'
+                    }}>
+                      <span style={{
+                        color: diagnostics.overall_status === 'healthy' ? '#00ff88' :
+                               diagnostics.overall_status === 'warning' ? '#ffaa00' : '#ff4444',
+                        fontWeight: 700, textTransform: 'uppercase'
+                      }}>
+                        {diagnostics.overall_status === 'healthy' ? '\u2713 ALL CHECKS PASSED' :
+                         diagnostics.overall_status === 'warning' ? '\u26A0 WARNINGS DETECTED' : '\u2717 CRITICAL ISSUES FOUND'}
+                      </span>
+                    </div>
+
+                    {diagnostics.checks.map((check, i) => (
+                      <div key={i} style={{
+                        background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: '8px 12px', marginBottom: 6,
+                        borderLeft: `3px solid ${check.status === 'ok' ? '#00ff88' : check.status === 'warning' ? '#ffaa00' : '#ff4444'}`
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>{check.title}</span>
+                          <span style={{
+                            color: check.status === 'ok' ? '#00ff88' : check.status === 'warning' ? '#ffaa00' : '#ff4444',
+                            fontSize: 11, fontWeight: 700, textTransform: 'uppercase'
+                          }}>
+                            {check.status === 'ok' ? '\u2713 OK' : check.status === 'warning' ? '\u26A0 WARN' : '\u2717 CRIT'}
+                          </span>
+                        </div>
+                        <div style={{ color: '#999', fontSize: 11, marginTop: 4 }}>{check.detail}</div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* GOXDCR Delay History */}
+              {diagnostics?.delay_windows && diagnostics.delay_windows.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="modal-label" style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>GOXDCR DELAY HISTORY</div>
+                  {diagnostics.delay_windows.map((dw, i) => (
+                    <div key={i} style={{
+                      background: 'rgba(255,170,0,0.1)', borderRadius: 6, padding: '6px 12px', marginBottom: 4,
+                      borderLeft: '3px solid #ffaa00', fontSize: 11
+                    }}>
+                      <span style={{ color: '#ffaa00' }}>{dw.cause}</span>
+                      <span style={{ color: '#888', marginLeft: 8 }}>
+                        {new Date(dw.start).toLocaleTimeString()}
+                        {dw.end ? ` — ${new Date(dw.end).toLocaleTimeString()}` : ' — ongoing'}
+                      </span>
+                      {dw.duration > 0 && (
+                        <span style={{ color: '#ccc', marginLeft: 8 }}>
+                          ({(dw.duration / 1e9).toFixed(0)}s)
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div>
+                <div className="modal-label" style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>QUICK ACTIONS</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#ffaa00' } as React.CSSProperties}
+                    onClick={() => { onCommand({ action: 'pause_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
+                  >
+                    <span className="btn-icon">{'\u23F8'}</span>
+                    <span className="btn-label">Pause XDCR</span>
+                  </button>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#00ff88' } as React.CSSProperties}
+                    onClick={() => { onCommand({ action: 'resume_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
+                  >
+                    <span className="btn-icon">{'\u25B6'}</span>
+                    <span className="btn-label">Resume XDCR</span>
+                  </button>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#00aaff' } as React.CSSProperties}
+                    onClick={() => { onCommand({ action: 'restart_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
+                  >
+                    <span className="btn-icon">{'\uD83D\uDD01'}</span>
+                    <span className="btn-label">Restart Pipeline</span>
+                  </button>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#ff4444' } as React.CSSProperties}
+                    onClick={() => { onCommand({ action: 'stop_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
+                  >
+                    <span className="btn-icon">{'\u23F9'}</span>
+                    <span className="btn-label">Stop XDCR</span>
+                  </button>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#aa88ff' } as React.CSSProperties}
+                    onClick={() => onCommand({ action: 'run_audit' })}
+                  >
+                    <span className="btn-icon">{'\uD83D\uDD0D'}</span>
+                    <span className="btn-label">Run Data Audit</span>
+                  </button>
+                  <button
+                    className="control-btn"
+                    style={{ '--btn-color': '#ff6600' } as React.CSSProperties}
+                    onClick={() => onCommand({ action: 'inject_failure', params: { type: 'xdcr_partition', target: 'replication' } })}
+                  >
+                    <span className="btn-icon">{'\uD83D\uDCA5'}</span>
+                    <span className="btn-label">Inject XDCR Failure</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn-cancel" onClick={() => setShowXDCRTroubleshoot(false)}>
+                Close
               </button>
             </div>
           </div>

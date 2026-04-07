@@ -17,6 +17,8 @@ type Validator struct {
 	config    models.ValidatorConfig
 	source    *couchbase.Client
 	target    *couchbase.Client
+	sourceREST *couchbase.RESTClient
+	targetREST *couchbase.RESTClient
 	collector *metrics.Collector
 	keyPrefix string
 
@@ -37,6 +39,12 @@ func NewValidator(cfg models.ValidatorConfig, source, target *couchbase.Client, 
 			Status: "idle",
 		},
 	}
+}
+
+// SetRESTClients sets REST-based fallback clients for when SDK is unavailable.
+func (v *Validator) SetRESTClients(source, target *couchbase.RESTClient) {
+	v.sourceREST = source
+	v.targetREST = target
 }
 
 // StartContinuous begins continuous validation.
@@ -60,18 +68,28 @@ func (v *Validator) Stop() {
 	log.Println("[Validator] Stopped")
 }
 
-// CanAudit checks whether the validator has the required SDK connections.
+// CanAudit checks whether the validator has the required connections (SDK or REST).
 func (v *Validator) CanAudit() error {
-	if v.source == nil || v.target == nil {
-		return fmt.Errorf("no Couchbase SDK connection — audit requires direct cluster access")
+	if (v.source != nil && v.target != nil) || (v.sourceREST != nil && v.targetREST != nil) {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("no Couchbase connection — audit requires SDK or REST cluster access")
 }
 
-// RunFullAudit performs a single full data audit.
+// hasSDK returns true if both SDK clients are available.
+func (v *Validator) hasSDK() bool {
+	return v.source != nil && v.target != nil
+}
+
+// RunFullAudit performs a single full data audit (SDK or REST-based).
 func (v *Validator) RunFullAudit(ctx context.Context) (models.IntegrityResult, error) {
-	if v.source == nil || v.target == nil {
-		return models.IntegrityResult{Status: "fail"}, fmt.Errorf("no Couchbase SDK connection — audit requires direct cluster access")
+	if !v.hasSDK() && (v.sourceREST == nil || v.targetREST == nil) {
+		return models.IntegrityResult{Status: "fail"}, fmt.Errorf("no Couchbase connection — audit requires SDK or REST cluster access")
+	}
+
+	// Use REST-based audit when SDK is not available
+	if !v.hasSDK() {
+		return v.runRESTAudit(ctx)
 	}
 	log.Println("[Validator] Starting full data audit...")
 	start := time.Now()
@@ -292,4 +310,114 @@ func (v *Validator) checkSequenceGaps(ctx context.Context, keys []string) []uint
 
 func (v *Validator) publishResult() {
 	v.collector.SetIntegrityResult(v.result)
+}
+
+// runRESTAudit performs a lightweight audit using REST API (doc count comparison + sample checks).
+func (v *Validator) runRESTAudit(ctx context.Context) (models.IntegrityResult, error) {
+	log.Println("[Validator] Starting REST-based audit (doc count + sample checks)...")
+	start := time.Now()
+
+	v.mu.Lock()
+	v.result = models.IntegrityResult{
+		RunID:     fmt.Sprintf("audit-rest-%d", time.Now().Unix()),
+		Status:    "running",
+		Timestamp: time.Now(),
+	}
+	v.mu.Unlock()
+	v.publishResult()
+
+	result := models.IntegrityResult{
+		RunID:     v.result.RunID,
+		Timestamp: time.Now(),
+	}
+
+	// Step 1: Compare document counts via REST
+	sourceCount, err := v.sourceREST.DocCount(ctx)
+	if err != nil {
+		result.Status = "fail"
+		v.mu.Lock()
+		v.result = result
+		v.mu.Unlock()
+		v.publishResult()
+		return result, fmt.Errorf("source doc count (REST): %w", err)
+	}
+
+	targetCount, err := v.targetREST.DocCount(ctx)
+	if err != nil {
+		result.Status = "fail"
+		v.mu.Lock()
+		v.result = result
+		v.mu.Unlock()
+		v.publishResult()
+		return result, fmt.Errorf("target doc count (REST): %w", err)
+	}
+
+	result.SourceDocs = sourceCount
+	result.TargetDocs = targetCount
+
+	if sourceCount > targetCount {
+		result.MissingCount = sourceCount - targetCount
+	} else if targetCount > sourceCount {
+		result.ExtraCount = targetCount - sourceCount
+	}
+
+	if result.SourceDocs > 0 {
+		result.MismatchPercent = float64(result.MissingCount) / float64(result.SourceDocs) * 100
+	}
+
+	result.Duration = time.Since(start).Seconds()
+
+	// Step 2: Sample key checks (spot-check a few known keys via REST)
+	sampleKeys := []string{}
+	for i := uint64(1); i <= 10; i++ {
+		sampleKeys = append(sampleKeys, fmt.Sprintf("%s::%s:%d", v.keyPrefix, "us-east-1", i))
+	}
+
+	var hashPassed, hashFailed uint64
+	for _, key := range sampleKeys {
+		srcDoc, srcErr := v.sourceREST.Get(ctx, key)
+		tgtDoc, tgtErr := v.targetREST.Get(ctx, key)
+		if srcErr != nil || tgtErr != nil {
+			if srcErr == nil && tgtErr != nil {
+				hashFailed++
+			}
+			continue
+		}
+		srcHash := couchbase.HashDocument(srcDoc)
+		tgtHash := couchbase.HashDocument(tgtDoc)
+		if srcHash == tgtHash {
+			hashPassed++
+		} else {
+			hashFailed++
+		}
+	}
+
+	result.HashMismatches = hashFailed
+
+	if result.MissingCount == 0 && result.HashMismatches == 0 {
+		result.Status = "pass"
+		log.Printf("[Validator] REST Audit PASSED: source=%d target=%d, %d samples verified (%.1fs)",
+			result.SourceDocs, result.TargetDocs, hashPassed, result.Duration)
+	} else {
+		result.Status = "fail"
+		log.Printf("[Validator] REST Audit FAILED: missing=%d, mismatches=%d (%.1fs)",
+			result.MissingCount, result.HashMismatches, result.Duration)
+
+		v.collector.AddAlert(models.Alert{
+			ID:        fmt.Sprintf("integrity-fail-%d", time.Now().Unix()),
+			Severity:  "critical",
+			Category:  "data_loss",
+			Title:     "Data Integrity Check Failed (REST)",
+			Message:   fmt.Sprintf("Doc count mismatch: source=%d target=%d, hash mismatches=%d", result.SourceDocs, result.TargetDocs, result.HashMismatches),
+			Source:    "validator",
+			Timestamp: time.Now(),
+		})
+	}
+
+	v.mu.Lock()
+	v.result = result
+	v.mu.Unlock()
+	v.publishResult()
+
+	return result, nil
 }

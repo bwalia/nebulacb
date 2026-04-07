@@ -30,6 +30,7 @@ type Config struct {
 	Migration models.MigrationConfig  `json:"migration,omitempty" yaml:"migration,omitempty"`
 	AI        models.AIConfig         `json:"ai,omitempty" yaml:"ai,omitempty"`
 	Docker    models.DockerConfig     `json:"docker,omitempty" yaml:"docker,omitempty"`
+	Kubeconfig string                 `json:"kubeconfig,omitempty" yaml:"kubeconfig,omitempty"` // path to kubeconfig for k8s clusters
 }
 
 // GetClusters returns the full cluster map (source/target + any additional clusters).

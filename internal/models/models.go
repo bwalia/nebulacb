@@ -18,8 +18,9 @@ type ClusterConfig struct {
 	Role       string `json:"role,omitempty" yaml:"role,omitempty"` // source, target, replica, standby
 	Region     string `json:"region,omitempty" yaml:"region,omitempty"`
 	Zone       string `json:"zone,omitempty" yaml:"zone,omitempty"`
-	Edition    string `json:"edition,omitempty" yaml:"edition,omitempty"` // community, enterprise
+	Edition    string `json:"edition,omitempty" yaml:"edition,omitempty"`     // community, enterprise
 	Platform   string `json:"platform,omitempty" yaml:"platform,omitempty"` // kubernetes, docker, native
+	Namespace  string `json:"namespace,omitempty" yaml:"namespace,omitempty"` // k8s namespace for this cluster
 }
 
 // Document represents a generated test document with tracking metadata.

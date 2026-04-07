@@ -364,6 +364,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         <ControlPanel
           onCommand={handleCommand}
           clusters={clusters}
+          xdcrStatus={state?.xdcr_status}
         />
       </main>
 

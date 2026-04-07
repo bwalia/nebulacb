@@ -133,6 +133,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/v1/migration/start", s.requireAuth(s.handleMigrationStart))
 	mux.HandleFunc("/api/v1/migration/history", s.requireAuth(s.handleMigrationHistory))
 
+	// Protected API routes — XDCR Management
+	mux.HandleFunc("/api/v1/xdcr/diagnostics", s.requireAuth(s.handleXDCRDiagnostics))
+
 	// Protected API routes — AI Analysis
 	mux.HandleFunc("/api/v1/ai/analyze", s.requireAuth(s.handleAIAnalyze))
 	mux.HandleFunc("/api/v1/ai/auto-analyze", s.requireAuth(s.handleAIAutoAnalyze))
@@ -607,6 +610,24 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 		}
 		return map[string]string{"status": "ok", "message": "XDCR pipeline restarted"}
 
+	case "pause_xdcr":
+		if err := s.xdcrEngine.PausePipeline(ctx); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "XDCR pipeline paused"}
+
+	case "resume_xdcr":
+		if err := s.xdcrEngine.ResumePipeline(ctx); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "XDCR pipeline resumed"}
+
+	case "stop_xdcr":
+		if err := s.xdcrEngine.StopPipeline(ctx); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "XDCR pipeline stopped"}
+
 	case "run_audit":
 		if s.validator == nil {
 			return map[string]string{"status": "error", "message": "Validator not initialised"}
@@ -677,6 +698,13 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 	default:
 		return map[string]string{"status": "error", "message": "unknown command: " + cmd.Action}
 	}
+}
+
+// ─── XDCR Handlers ─────────────────────────────────────────────────────────
+
+func (s *Server) handleXDCRDiagnostics(w http.ResponseWriter, r *http.Request) {
+	results := s.xdcrEngine.RunDiagnostics(r.Context())
+	writeJSON(w, http.StatusOK, results)
 }
 
 // ─── Multi-Region Handlers ──────────────────────────────────────────────────
