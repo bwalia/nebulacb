@@ -140,6 +140,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/v1/ai/analyze", s.requireAuth(s.handleAIAnalyze))
 	mux.HandleFunc("/api/v1/ai/auto-analyze", s.requireAuth(s.handleAIAutoAnalyze))
 	mux.HandleFunc("/api/v1/ai/insights", s.requireAuth(s.handleAIInsights))
+	mux.HandleFunc("/api/v1/ai/rca", s.requireAuth(s.handleAIRCA))
+	mux.HandleFunc("/api/v1/ai/knowledge", s.requireAuth(s.handleAIKnowledge))
 
 	// Protected API routes — Docker Management
 	mux.HandleFunc("/api/v1/docker/containers", s.requireAuth(s.handleDockerContainers))
@@ -982,6 +984,155 @@ func (s *Server) handleAIInsights(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.aiAnalyzer.GetInsights())
+}
+
+func (s *Server) handleAIRCA(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		if s.aiAnalyzer == nil {
+			writeJSON(w, http.StatusOK, []interface{}{})
+			return
+		}
+		writeJSON(w, http.StatusOK, s.aiAnalyzer.GetRCAReports())
+		return
+	}
+	if r.Method == "POST" {
+		if s.aiAnalyzer == nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "AI not configured"})
+			return
+		}
+		var req struct {
+			Cluster  string `json:"cluster"`
+			Category string `json:"category"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		report, err := s.aiAnalyzer.RunRCA(r.Context(), req.Cluster, req.Category, s.collector)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, report)
+		return
+	}
+	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or POST only"})
+}
+
+func (s *Server) handleAIKnowledge(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, knowledgeBase)
+}
+
+// knowledgeBase is a built-in set of common Couchbase issues and solutions.
+var knowledgeBase = []map[string]interface{}{
+	{
+		"id": "kb-xdcr-lag", "category": "XDCR", "severity": "warning",
+		"title":       "XDCR Replication Lag Increasing",
+		"description": "XDCR replication lag grows when the target cluster cannot keep up with mutations on the source, often during upgrades or heavy write loads.",
+		"symptoms":    []string{"changes_left increasing", "replication_lag_ms > 5000", "pipeline restarts", "GOXDCR delay > 5 minutes"},
+		"solution":    "1. Check target cluster CPU/memory usage. 2. Increase XDCR nozzle count. 3. Check network bandwidth between clusters. 4. Pause non-critical load during upgrades.",
+		"commands":    []string{"curl -u admin:pass http://source:8091/pools/default/buckets/bucket/stats", "curl -u admin:pass http://source:8091/settings/replications"},
+		"tags":        []string{"xdcr", "replication", "lag", "performance"},
+	},
+	{
+		"id": "kb-xdcr-pipeline", "category": "XDCR", "severity": "critical",
+		"title":       "XDCR Pipeline Restarts During Upgrade",
+		"description": "During rolling upgrades, XDCR pipelines restart when nodes leave and rejoin the cluster. This is expected but should be monitored for data integrity.",
+		"symptoms":    []string{"pipeline_restarts > 0", "topology_change=true", "brief replication pause", "GOXDCR delay timer starts"},
+		"solution":    "Pipeline restarts are expected during rolling upgrades. Monitor: 1. changes_left should decrease after restart. 2. GOXDCR delay should resolve within 5 minutes. 3. Run data audit after upgrade completes.",
+		"commands":    []string{"nebulacb-cli restart-xdcr", "nebulacb-cli run-audit"},
+		"tags":        []string{"xdcr", "upgrade", "pipeline", "topology"},
+	},
+	{
+		"id": "kb-upgrade-rebalance", "category": "Upgrade", "severity": "warning",
+		"title":       "Rebalance Stuck During Rolling Upgrade",
+		"description": "A rebalance operation can get stuck if a node fails to rejoin the cluster after upgrade, or if there are insufficient resources.",
+		"symptoms":    []string{"rebalance_state=running for >30 minutes", "node status=unhealthy after upgrade", "upgrade progress stalled"},
+		"solution":    "1. Check node logs for errors (cbcollect_info). 2. Verify the node has enough disk/memory. 3. If stuck, cancel rebalance and retry. 4. As last resort, failover the problematic node.",
+		"commands":    []string{"curl -u admin:pass http://node:8091/controller/rebalance", "curl -u admin:pass -X POST http://node:8091/controller/stopRebalance"},
+		"tags":        []string{"upgrade", "rebalance", "stuck", "node"},
+	},
+	{
+		"id": "kb-upgrade-version-mismatch", "category": "Upgrade", "severity": "info",
+		"title":       "Mixed Version Cluster During Upgrade",
+		"description": "During a rolling upgrade, the cluster runs with mixed versions. This is supported but some features may be unavailable until all nodes are upgraded.",
+		"symptoms":    []string{"nodes with different versions", "some features unavailable", "REST API may return mixed results"},
+		"solution":    "This is expected during rolling upgrades. Complete the upgrade of all nodes before enabling new features. Avoid schema changes during mixed-version operation.",
+		"commands":    []string{"curl -u admin:pass http://node:8091/pools/default | jq '.nodes[].version'"},
+		"tags":        []string{"upgrade", "version", "mixed-mode", "compatibility"},
+	},
+	{
+		"id": "kb-failover-auto", "category": "Failover", "severity": "critical",
+		"title":       "Auto-Failover Triggered Unexpectedly",
+		"description": "Auto-failover activates when a node becomes unresponsive for longer than the configured timeout. This can happen during network partitions or resource exhaustion.",
+		"symptoms":    []string{"node marked as failed", "auto-failover event in logs", "rebalance triggered automatically", "data may be temporarily unavailable"},
+		"solution":    "1. Investigate why the node became unresponsive. 2. Check network connectivity. 3. Check for OOM kills or disk failures. 4. After fixing, add the node back with delta recovery if possible.",
+		"commands":    []string{"curl -u admin:pass http://node:8091/pools/default/serverGroups", "curl -u admin:pass -X POST http://node:8091/controller/addBack -d otpNode=ns_1@hostname"},
+		"tags":        []string{"failover", "auto-failover", "ha", "node-failure"},
+	},
+	{
+		"id": "kb-failover-region", "category": "Failover", "severity": "critical",
+		"title":       "Cross-Region Failover Setup",
+		"description": "Setting up failover across regions requires bidirectional XDCR, monitoring of both clusters, and clear failover procedures.",
+		"symptoms":    []string{"need multi-region HA", "disaster recovery planning", "cross-region replication setup"},
+		"solution":    "1. Set up bidirectional XDCR between regions. 2. Configure auto-failover with appropriate timeout (>60s for cross-region). 3. Ensure DNS/load balancer can redirect traffic. 4. Test failover procedure regularly.",
+		"commands":    []string{"curl -X POST http://source:8091/pools/default/remoteClusters -d 'name=dc2&hostname=target:8091'", "curl -X POST http://source:8091/controller/createReplication -d 'fromBucket=app&toCluster=dc2&toBucket=app'"},
+		"tags":        []string{"failover", "multi-region", "xdcr", "disaster-recovery"},
+	},
+	{
+		"id": "kb-backup-schedule", "category": "Backup", "severity": "info",
+		"title":       "Backup Schedule Best Practices",
+		"description": "Regular backups protect against data loss from hardware failures, human errors, and software bugs.",
+		"symptoms":    []string{"no backup configured", "backup failing", "restore needed", "backup too slow"},
+		"solution":    "1. Schedule daily incremental + weekly full backups. 2. Store backups in a different region/cloud. 3. Enable compression for smaller backups. 4. Test restore procedures monthly. 5. Monitor backup duration and size trends.",
+		"commands":    []string{"cbbackupmgr config --archive /backup --repo default --include-data bucket", "cbbackupmgr backup --archive /backup --repo default --cluster couchbase://localhost -u admin -p pass"},
+		"tags":        []string{"backup", "restore", "schedule", "best-practices"},
+	},
+	{
+		"id": "kb-backup-restore-fail", "category": "Backup", "severity": "critical",
+		"title":       "Backup Restore Failure",
+		"description": "Restore operations can fail due to version incompatibility, insufficient resources, or corrupted backup files.",
+		"symptoms":    []string{"restore command fails", "partial data restored", "bucket creation error during restore", "timeout during restore"},
+		"solution":    "1. Verify backup integrity with cbbackupmgr examine. 2. Ensure target cluster has enough RAM quota. 3. Check version compatibility. 4. For large restores, increase timeout and use --threads.",
+		"commands":    []string{"cbbackupmgr examine --archive /backup --repo default", "cbbackupmgr restore --archive /backup --repo default --cluster couchbase://target -u admin -p pass"},
+		"tags":        []string{"backup", "restore", "failure", "troubleshoot"},
+	},
+	{
+		"id": "kb-perf-memory", "category": "Performance", "severity": "warning",
+		"title":       "High Memory Usage / Low Resident Ratio",
+		"description": "When the resident ratio drops below 90%, Couchbase starts fetching documents from disk, significantly impacting read latency.",
+		"symptoms":    []string{"vb_active_resident_items_ratio < 90%", "ep_bg_fetched increasing", "high read latency", "disk read queue growing"},
+		"solution":    "1. Increase bucket RAM quota. 2. Add more nodes to distribute data. 3. Enable compression. 4. Review data model for oversized documents. 5. Consider using eviction policy 'valueOnly'.",
+		"commands":    []string{"curl -u admin:pass http://node:8091/pools/default/buckets/bucket -X POST -d ramQuota=1024"},
+		"tags":        []string{"performance", "memory", "resident-ratio", "latency"},
+	},
+	{
+		"id": "kb-perf-disk-queue", "category": "Performance", "severity": "warning",
+		"title":       "High Disk Write Queue",
+		"description": "A growing disk write queue indicates the storage subsystem cannot keep up with incoming writes. This can lead to temporary OOM and client backpressure.",
+		"symptoms":    []string{"disk_write_queue > 10000", "ep_queue_size growing", "write latency increasing", "temp OOM errors"},
+		"solution":    "1. Check disk I/O with iostat. 2. Consider SSD storage. 3. Reduce write throughput temporarily. 4. Add more nodes. 5. Check compaction settings — too frequent compaction competes with writes.",
+		"commands":    []string{"curl -u admin:pass http://node:8091/pools/default/buckets/bucket/stats?stat=disk_write_queue"},
+		"tags":        []string{"performance", "disk", "write-queue", "storage"},
+	},
+	{
+		"id": "kb-data-integrity", "category": "Data Integrity", "severity": "critical",
+		"title":       "Document Count Mismatch Between Clusters",
+		"description": "Source and target clusters show different document counts, which may indicate XDCR lag, failed mutations, or conflict resolution issues.",
+		"symptoms":    []string{"delta between source and target > 0", "missing documents on target", "hash mismatches in audit", "sequence gaps detected"},
+		"solution":    "1. Wait for XDCR to catch up (check changes_left). 2. Run data integrity audit. 3. Check for conflict resolution (LWW vs sequence). 4. Verify bidirectional XDCR if both clusters accept writes.",
+		"commands":    []string{"nebulacb-cli run-audit", "nebulacb-cli status"},
+		"tags":        []string{"data-integrity", "xdcr", "document-count", "audit"},
+	},
+	{
+		"id": "kb-config-nodeport", "category": "Configuration", "severity": "info",
+		"title":       "External Access to Kubernetes Couchbase Clusters",
+		"description": "Accessing Couchbase clusters running in Kubernetes from outside the cluster requires NodePort services and SDK network=external configuration.",
+		"symptoms":    []string{"SDK connection timeout from outside k8s", "cluster not ready error", "cannot reach KV port"},
+		"solution":    "1. Patch CouchbaseCluster with exposedFeatures: [client, admin]. 2. Set kv_port in config.json to the KV NodePort. 3. SDK uses ?network=external to read alternate addresses. 4. Use the node IP where the pod runs (check externalTrafficPolicy).",
+		"commands":    []string{"kubectl patch couchbasecluster cb-local -n couchbase --type merge -p '{\"spec\":{\"networking\":{\"exposedFeatures\":[\"client\",\"admin\"]}}}'", "kubectl get svc -n couchbase -l couchbase_cluster=cb-local"},
+		"tags":        []string{"kubernetes", "nodeport", "external-access", "sdk", "configuration"},
+	},
 }
 
 // ─── Docker Management Handlers ─────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { DashboardState, Command } from '../types';
+import { DashboardState, Command, AIInsight, RCAReport, KnowledgeBaseEntry } from '../types';
 
 function wsUrl(): string {
   if (process.env.REACT_APP_WS_URL) return process.env.REACT_APP_WS_URL;
@@ -141,5 +141,76 @@ export async function fetchDashboard(): Promise<DashboardState> {
     clearToken();
     window.location.reload();
   }
+  return resp.json();
+}
+
+// ─── AI API helpers ─────────────────────────────────────────────────────────
+
+export async function aiAnalyze(req: {
+  type: string;
+  context?: string;
+  cluster_name?: string;
+  logs?: string[];
+  error_msg?: string;
+  metrics_json?: string;
+  question?: string;
+}): Promise<{ insight: AIInsight; raw_reply: string; tokens_used: number; duration_seconds: number }> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/analyze`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(req),
+  });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: 'AI analysis failed' }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export async function aiAutoAnalyze(): Promise<{ insight: AIInsight; raw_reply: string }> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/auto-analyze`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: 'Auto-analyze failed' }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export async function fetchAIInsights(): Promise<AIInsight[]> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/insights`, { headers: authHeaders() });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  return resp.json();
+}
+
+export async function fetchRCAReports(): Promise<RCAReport[]> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/rca`, { headers: authHeaders() });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  if (!resp.ok) return [];
+  return resp.json();
+}
+
+export async function triggerRCA(cluster: string, category: string): Promise<RCAReport> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/rca`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ cluster, category }),
+  });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: 'RCA failed' }));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export async function fetchKnowledgeBase(): Promise<KnowledgeBaseEntry[]> {
+  const resp = await fetch(`${apiBase()}/api/v1/ai/knowledge`, { headers: authHeaders() });
+  if (resp.status === 401) { clearToken(); window.location.reload(); }
+  if (!resp.ok) return [];
   return resp.json();
 }

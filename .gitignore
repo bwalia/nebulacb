@@ -8,3 +8,4 @@ web/nebulacb-ui/build/
 *.test
 *.out
 .env
+.DS_Store

@@ -7,11 +7,17 @@ import { LoadPanel } from './components/LoadPanel';
 import { AlertPanel } from './components/AlertPanel';
 import { ControlPanel } from './components/ControlPanel';
 import { LoginPage } from './components/LoginPage';
+import { AskAIPanel } from './components/AskAIPanel';
+import { RCAPanel } from './components/RCAPanel';
+import { KnowledgeBasePanel } from './components/KnowledgeBasePanel';
+import { AIInsightsPanel } from './components/AIInsightsPanel';
 import {
   Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus,
   RegionStatus, FailoverStatus, BackupStatus, MigrationStatus, AIInsight,
 } from './types';
 import './App.css';
+
+type TabKey = 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights';
 
 const emptyCluster: ClusterMetrics = {
   cluster_name: '', nodes: [], rebalance_state: 'none', total_docs: 0,
@@ -88,6 +94,7 @@ function App() {
 
 function Dashboard({ onLogout }: { onLogout?: () => void }) {
   const { state, connected } = useWebSocket();
+  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
 
   if (state?.storm_metrics) {
     stormHistory.push(state.storm_metrics);
@@ -173,7 +180,35 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         </div>
       </header>
 
+      {/* Tab Navigation */}
+      <nav className="tab-nav">
+        {([
+          ['dashboard', 'Dashboard', '\u25C8'],
+          ['ask-ai', 'Ask AI', '\uD83E\uDD16'],
+          ['rca', 'RCA', '\uD83D\uDD0D'],
+          ['knowledge', 'Knowledge Base', '\uD83D\uDCDA'],
+          ['insights', 'AI Insights', '\uD83D\uDCCA'],
+        ] as [TabKey, string, string][]).map(([key, label, icon]) => (
+          <button
+            key={key}
+            className={`tab-btn ${activeTab === key ? 'active' : ''}`}
+            onClick={() => setActiveTab(key)}
+          >
+            <span className="tab-icon">{icon}</span>
+            <span className="tab-label">{label}</span>
+          </button>
+        ))}
+      </nav>
+
       <main className="main-layout">
+        {/* AI Tabs */}
+        {activeTab === 'ask-ai' && <AskAIPanel clusters={clusters} />}
+        {activeTab === 'rca' && <RCAPanel clusters={clusters} />}
+        {activeTab === 'knowledge' && <KnowledgeBasePanel />}
+        {activeTab === 'insights' && <AIInsightsPanel />}
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && <>
         {/* Region Bar (if multi-region) */}
         {regions.length > 0 && (
           <section className="region-bar">
@@ -366,6 +401,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           clusters={clusters}
           xdcrStatus={state?.xdcr_status}
         />
+        </>}
       </main>
 
       <footer className="footer">

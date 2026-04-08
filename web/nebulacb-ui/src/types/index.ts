@@ -228,6 +228,51 @@ export interface AIInsight {
   timestamp: string;
 }
 
+// ─── AI Chat & RCA ─────────────────────────────────────────────────────────
+
+export interface AIChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  type?: string;
+  tokens_used?: number;
+  duration?: number;
+}
+
+export interface RCAReport {
+  id: string;
+  timestamp: string;
+  cluster: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  category: string;
+  root_cause: string;
+  evidence: string[];
+  remediation: RemediationStep[];
+  status: 'pending' | 'analyzing' | 'complete' | 'action_taken';
+  confidence: number;
+}
+
+export interface RemediationStep {
+  order: number;
+  action: string;
+  description: string;
+  command?: string;
+  risk: 'low' | 'medium' | 'high';
+}
+
+export interface KnowledgeBaseEntry {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  symptoms: string[];
+  solution: string;
+  commands?: string[];
+  severity: string;
+  tags: string[];
+}
+
 // ─── Dashboard State ────────────────────────────────────────────────────────
 
 export interface DashboardState {

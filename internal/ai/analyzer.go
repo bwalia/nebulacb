@@ -16,25 +16,50 @@ import (
 	"github.com/balinderwalia/nebulacb/internal/models"
 )
 
+// RCAReport represents an AI-generated root cause analysis.
+type RCAReport struct {
+	ID          string            `json:"id"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Cluster     string            `json:"cluster"`
+	Severity    string            `json:"severity"`
+	Category    string            `json:"category"`
+	RootCause   string            `json:"root_cause"`
+	Evidence    []string          `json:"evidence"`
+	Remediation []RemediationStep `json:"remediation"`
+	Status      string            `json:"status"`
+	Confidence  float64           `json:"confidence"`
+}
+
+// RemediationStep is a single step in an RCA remediation plan.
+type RemediationStep struct {
+	Order       int    `json:"order"`
+	Action      string `json:"action"`
+	Description string `json:"description"`
+	Command     string `json:"command,omitempty"`
+	Risk        string `json:"risk"`
+}
+
 // Analyzer provides AI-powered log analysis, troubleshooting, and recommendations.
 type Analyzer struct {
 	config    models.AIConfig
 	collector *metrics.Collector
 	client    *http.Client
 
-	mu       sync.RWMutex
-	insights []models.AIInsight
-	history  []models.AIAnalysisResponse
+	mu         sync.RWMutex
+	insights   []models.AIInsight
+	history    []models.AIAnalysisResponse
+	rcaReports []RCAReport
 }
 
 // NewAnalyzer creates a new AI analyzer.
 func NewAnalyzer(cfg models.AIConfig, collector *metrics.Collector) *Analyzer {
 	return &Analyzer{
-		config:    cfg,
-		collector: collector,
-		client:    &http.Client{Timeout: 120 * time.Second},
-		insights:  make([]models.AIInsight, 0),
-		history:   make([]models.AIAnalysisResponse, 0),
+		config:     cfg,
+		collector:  collector,
+		client:     &http.Client{Timeout: 120 * time.Second},
+		insights:   make([]models.AIInsight, 0),
+		history:    make([]models.AIAnalysisResponse, 0),
+		rcaReports: make([]RCAReport, 0),
 	}
 }
 
@@ -142,6 +167,157 @@ func (a *Analyzer) GetHistory() []models.AIAnalysisResponse {
 	result := make([]models.AIAnalysisResponse, len(a.history))
 	copy(result, a.history)
 	return result
+}
+
+// GetRCAReports returns recent RCA reports.
+func (a *Analyzer) GetRCAReports() []RCAReport {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	result := make([]RCAReport, len(a.rcaReports))
+	copy(result, a.rcaReports)
+	return result
+}
+
+// RunRCA performs a root cause analysis using AI for the given cluster and category.
+func (a *Analyzer) RunRCA(ctx context.Context, cluster, category string, collector *metrics.Collector) (*RCAReport, error) {
+	if !a.config.Enabled {
+		return nil, fmt.Errorf("AI analysis is disabled")
+	}
+
+	// Build context from current cluster state
+	state := collector.GetDashboardState()
+	var contextParts []string
+
+	for name, cm := range state.Clusters {
+		if cluster != "" && name != cluster {
+			continue
+		}
+		status := "healthy"
+		if !cm.Healthy {
+			status = "UNHEALTHY"
+		}
+		contextParts = append(contextParts, fmt.Sprintf(
+			"Cluster %s: %s, version=%s, nodes=%d, docs=%d, ops/s=%.0f, mem=%.0f/%.0fMB, "+
+				"rebalance=%s, disk_write_queue=%.0f, cache_miss=%.2f, resident_ratio=%.1f%%",
+			name, status, cm.Version, len(cm.Nodes), cm.TotalDocs, cm.OpsPerSec,
+			cm.TotalMemUsedMB, cm.TotalMemTotalMB, cm.RebalanceState,
+			cm.DiskWriteQueue, cm.CacheMissRate, cm.ResidentRatio,
+		))
+	}
+
+	// Add XDCR status
+	xdcr := state.XDCRStatus
+	contextParts = append(contextParts, fmt.Sprintf(
+		"XDCR: state=%s, changes_left=%d, lag=%.0fms, pipeline_restarts=%d, topology_change=%v",
+		xdcr.State, xdcr.ChangesLeft, xdcr.ReplicationLag, xdcr.PipelineRestarts, xdcr.TopologyChange,
+	))
+
+	// Add active alerts
+	for _, alert := range state.Alerts {
+		if !alert.Resolved {
+			contextParts = append(contextParts, fmt.Sprintf("ALERT [%s] %s: %s", alert.Severity, alert.Title, alert.Message))
+		}
+	}
+
+	prompt := fmt.Sprintf(`You are NebulaCB AI performing Root Cause Analysis.
+Category: %s
+Cluster: %s
+
+Current State:
+%s
+
+Perform a thorough root cause analysis. Respond in this exact JSON format:
+{"severity":"critical|high|medium|low|info","root_cause":"Detailed explanation of the root cause","evidence":["evidence point 1","evidence point 2"],"remediation":[{"order":1,"action":"Short action title","description":"Detailed description","command":"optional shell command","risk":"low|medium|high"}],"confidence":0.85}`, category, cluster, strings.Join(contextParts, "\n"))
+
+	start := time.Now()
+	var rawReply string
+	var err error
+
+	switch strings.ToLower(a.config.Provider) {
+	case "anthropic":
+		rawReply, _, err = a.callAnthropic(ctx, prompt)
+	case "openai":
+		rawReply, _, err = a.callOpenAI(ctx, prompt)
+	case "ollama":
+		rawReply, _, err = a.callOllama(ctx, prompt)
+	case "custom":
+		rawReply, _, err = a.callCustom(ctx, prompt)
+	default:
+		return nil, fmt.Errorf("unsupported AI provider: %s", a.config.Provider)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("AI RCA failed: %w", err)
+	}
+
+	report := a.parseRCAReport(rawReply, cluster, category)
+	log.Printf("[AI] RCA completed in %.1fs for %s/%s (severity: %s)", time.Since(start).Seconds(), cluster, category, report.Severity)
+
+	a.mu.Lock()
+	a.rcaReports = append(a.rcaReports, *report)
+	if len(a.rcaReports) > 50 {
+		a.rcaReports = a.rcaReports[len(a.rcaReports)-50:]
+	}
+	a.mu.Unlock()
+
+	return report, nil
+}
+
+func (a *Analyzer) parseRCAReport(rawReply, cluster, category string) *RCAReport {
+	report := &RCAReport{
+		ID:        fmt.Sprintf("rca-%d", time.Now().UnixNano()),
+		Timestamp: time.Now(),
+		Cluster:   cluster,
+		Category:  category,
+		Status:    "complete",
+	}
+
+	var parsed struct {
+		Severity    string `json:"severity"`
+		RootCause   string `json:"root_cause"`
+		Evidence    []string `json:"evidence"`
+		Remediation []struct {
+			Order       int    `json:"order"`
+			Action      string `json:"action"`
+			Description string `json:"description"`
+			Command     string `json:"command"`
+			Risk        string `json:"risk"`
+		} `json:"remediation"`
+		Confidence float64 `json:"confidence"`
+	}
+
+	jsonStart := strings.Index(rawReply, "{")
+	jsonEnd := strings.LastIndex(rawReply, "}")
+	if jsonStart >= 0 && jsonEnd > jsonStart {
+		if err := json.Unmarshal([]byte(rawReply[jsonStart:jsonEnd+1]), &parsed); err == nil {
+			report.Severity = parsed.Severity
+			report.RootCause = parsed.RootCause
+			report.Evidence = parsed.Evidence
+			report.Confidence = parsed.Confidence
+			if report.Confidence == 0 {
+				report.Confidence = 0.8
+			}
+			for _, r := range parsed.Remediation {
+				report.Remediation = append(report.Remediation, RemediationStep{
+					Order:       r.Order,
+					Action:      r.Action,
+					Description: r.Description,
+					Command:     r.Command,
+					Risk:        r.Risk,
+				})
+			}
+			return report
+		}
+	}
+
+	// Fallback
+	report.Severity = "info"
+	report.RootCause = rawReply
+	report.Confidence = 0.5
+	if len(report.RootCause) > 1000 {
+		report.RootCause = report.RootCause[:1000] + "..."
+	}
+	return report
 }
 
 func (a *Analyzer) buildPrompt(req models.AIAnalysisRequest) string {
