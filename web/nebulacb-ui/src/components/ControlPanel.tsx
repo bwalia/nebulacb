@@ -22,6 +22,7 @@ const buttons = [
   { label: 'Stop Load', action: 'stop_load', icon: '\u23F9', color: '#ff4444', group: 'load' },
   { label: 'Start Upgrade', action: 'start_upgrade', icon: '\uD83D\uDE80', color: '#00aaff', group: 'upgrade' },
   { label: 'Abort Upgrade', action: 'abort_upgrade', icon: '\uD83D\uDED1', color: '#ff4444', group: 'upgrade' },
+  { label: 'Downgrade', action: 'downgrade', icon: '\u23EA', color: '#ff6600', group: 'upgrade' },
   { label: 'Pause XDCR', action: 'pause_xdcr', icon: '\u23F8', color: '#ffaa00', group: 'replication' },
   { label: 'Resume XDCR', action: 'resume_xdcr', icon: '\u25B6', color: '#00ff88', group: 'replication' },
   { label: 'Stop XDCR', action: 'stop_xdcr', icon: '\u23F9', color: '#ff4444', group: 'replication' },
@@ -62,6 +63,7 @@ interface DiagnosticsResult {
 
 export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showFailoverModal, setShowFailoverModal] = useState(false);
   const [showXDCRTroubleshoot, setShowXDCRTroubleshoot] = useState(false);
@@ -115,6 +117,8 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
   const handleButtonClick = (action: string) => {
     if (action === 'start_upgrade') {
       setShowUpgradeModal(true);
+    } else if (action === 'downgrade') {
+      setShowDowngradeModal(true);
     } else if (action === 'start_backup') {
       setShowBackupModal(true);
     } else if (action === 'manual_failover') {
@@ -371,6 +375,47 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
               >
                 Execute Failover
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Downgrade Confirmation Modal */}
+      {showDowngradeModal && (
+        <div className="modal-overlay" onClick={() => setShowDowngradeModal(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-icon">{'\u23EA'}</span>
+              Downgrade — Roll Back to Previous Version
+            </div>
+            <div className="modal-body">
+              <div className="modal-warning" style={{ marginBottom: 12 }}>
+                This will re-patch the CouchbaseCluster CR to the original image version,
+                triggering the Operator to do a rolling restart with the previous version.
+                This is a destructive operation that may cause temporary service disruption.
+              </div>
+              <div className="modal-current-version">
+                The cluster will be rolled back from the upgrade target to the
+                <span className="version-tag"> source version</span> configured in NebulaCB.
+              </div>
+              <div className="modal-warning" style={{ marginTop: 12, color: '#ff4444', borderColor: 'rgba(255,68,68,0.3)', background: 'rgba(255,68,68,0.08)' }}>
+                Downgrading across major versions is not always supported by Couchbase.
+                Ensure compatibility before proceeding.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="modal-btn modal-btn-cancel"
+                onClick={() => setShowDowngradeModal(false)}
+              >Cancel</button>
+              <button
+                className="modal-btn modal-btn-confirm"
+                style={{ background: '#ff6600' }}
+                onClick={() => {
+                  onCommand({ action: 'downgrade' });
+                  setShowDowngradeModal(false);
+                }}
+              >Confirm Downgrade</button>
             </div>
           </div>
         </div>

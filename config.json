@@ -114,9 +114,10 @@
     "validate_after": true
   },
   "ai": {
-    "enabled": false,
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514",
+    "enabled": true,
+    "provider": "ollama",
+    "model": "llama3",
+    "api_endpoint": "http://127.0.0.1:11434",
     "api_key": "",
     "max_tokens": 4096,
     "auto_analyze": false

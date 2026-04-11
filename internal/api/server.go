@@ -606,6 +606,12 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 		s.orchestrator.Abort()
 		return map[string]string{"status": "ok", "message": "Upgrade aborted"}
 
+	case "downgrade":
+		if err := s.orchestrator.Downgrade(ctx); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "Downgrade initiated — rolling back to previous version"}
+
 	case "restart_xdcr":
 		if err := s.xdcrEngine.RestartPipeline(ctx); err != nil {
 			return map[string]string{"status": "error", "message": err.Error()}

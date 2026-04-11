@@ -51,6 +51,11 @@ func (m *PortForwardManager) SetupClusters(ctx context.Context, clusters map[str
 		if cfg.Platform != "kubernetes" || cfg.Namespace == "" {
 			continue
 		}
+		// Skip port-forwarding if KVPort is set — cluster is accessible via NodePort directly
+		if cfg.KVPort > 0 {
+			log.Printf("[PortForward] Skipping %s — using NodePort (host=%s kv_port=%d)", name, cfg.Host, cfg.KVPort)
+			continue
+		}
 
 		podName, err := m.discoverCouchbasePod(ctx, cfg.Namespace, name)
 		if err != nil {
@@ -158,6 +163,55 @@ func (m *PortForwardManager) startPortForward(ctx context.Context, clusterName, 
 	return localPort, nil
 }
 
+// StartHealthCheck launches a background goroutine that periodically checks all
+// port-forwards and restarts any that have died. This prevents clusters from going
+// offline after long-running sessions.
+func (m *PortForwardManager) StartHealthCheck(ctx context.Context, clusters map[string]models.ClusterConfig, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				m.mu.Lock()
+				for name, pf := range m.forwards {
+					// Check if the port-forward process is still alive
+					if pf.cmd.ProcessState != nil || !isPortOpen(pf.localPort) {
+						log.Printf("[PortForward] %s is dead (port %d unreachable), restarting...", name, pf.localPort)
+						pf.cancel()
+						_ = pf.cmd.Wait()
+						delete(m.forwards, name)
+
+						// Re-establish
+						cfg, ok := clusters[name]
+						if !ok {
+							continue
+						}
+						m.mu.Unlock()
+						podName, err := m.discoverCouchbasePod(ctx, cfg.Namespace, name)
+						if err != nil {
+							log.Printf("[PortForward] WARN: reconnect %s: %v", name, err)
+							m.mu.Lock()
+							continue
+						}
+						localPort, err := m.startPortForward(ctx, name, cfg.Namespace, podName)
+						if err != nil {
+							log.Printf("[PortForward] WARN: reconnect %s: %v", name, err)
+							m.mu.Lock()
+							continue
+						}
+						log.Printf("[PortForward] Reconnected %s → %s/%s → localhost:%d", name, cfg.Namespace, podName, localPort)
+						m.mu.Lock()
+					}
+				}
+				m.mu.Unlock()
+			}
+		}
+	}()
+}
+
 // Stop terminates all port-forward processes.
 func (m *PortForwardManager) Stop() {
 	m.mu.Lock()
@@ -168,6 +222,16 @@ func (m *PortForwardManager) Stop() {
 		_ = pf.cmd.Wait()
 	}
 	m.forwards = make(map[string]*portForward)
+}
+
+// isPortOpen checks if a local port is still accepting connections.
+func isPortOpen(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 2*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // getFreePort asks the OS for an available port.

@@ -66,6 +66,8 @@ func main() {
 	if kubeconfig != "" {
 		pfManager = kubernetes.NewPortForwardManager(kubeconfig)
 		allClusters = pfManager.SetupClusters(ctx, allClusters)
+		// Start health check to auto-reconnect dead port-forwards every 30s
+		pfManager.StartHealthCheck(ctx, allClusters, 30*time.Second)
 	}
 
 	log.Printf("[Main] Cluster registry: %d clusters", len(allClusters))

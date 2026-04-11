@@ -93,6 +93,79 @@ func (o *Orchestrator) Abort() {
 	log.Println("[Orchestrator] Upgrade aborted")
 }
 
+// Downgrade rolls back the cluster to the source version by re-patching the CouchbaseCluster CR.
+// This triggers the Operator to do a rolling restart with the original image.
+func (o *Orchestrator) Downgrade(ctx context.Context) error {
+	o.mu.Lock()
+	phase := o.status.Phase
+	sourceVersion := o.config.SourceVersion
+	clusterName := o.config.ClusterName
+	o.mu.Unlock()
+
+	if o.k8s == nil {
+		return fmt.Errorf("Kubernetes client not available")
+	}
+	if sourceVersion == "" {
+		return fmt.Errorf("source version not configured — cannot determine rollback target")
+	}
+
+	// Cancel any in-progress upgrade tracking
+	if o.cancel != nil {
+		o.cancel()
+	}
+
+	log.Printf("[Orchestrator] Downgrade requested: rolling back %s to v%s (was in phase: %s)", clusterName, sourceVersion, phase)
+
+	// Patch the CouchbaseCluster CR back to the original version
+	if err := o.k8s.PatchCouchbaseCluster(ctx, clusterName, sourceVersion); err != nil {
+		o.setError("downgrade patch failed: %v", err)
+		return fmt.Errorf("downgrade patch failed: %w", err)
+	}
+
+	// Reset status to track the downgrade as a new "upgrade" back to source
+	o.mu.Lock()
+	o.cancel = nil
+	ctx, o.cancel = context.WithCancel(context.Background())
+	o.status = models.UpgradeStatus{
+		Phase:         "upgrading",
+		SourceVersion: o.config.TargetVersion,
+		TargetVersion: sourceVersion,
+		StartTime:     time.Now(),
+	}
+	o.mu.Unlock()
+	o.publishStatus()
+
+	// Discover pods and track the rollback
+	go func() {
+		pods, err := o.k8s.GetPods(ctx, fmt.Sprintf("app=couchbase,couchbase_cluster=%s", clusterName))
+		if err != nil {
+			o.setError("downgrade: failed to list pods: %v", err)
+			return
+		}
+		o.mu.Lock()
+		o.status.NodesTotal = len(pods)
+		o.mu.Unlock()
+
+		// Temporarily swap target version for tracking
+		origTarget := o.config.TargetVersion
+		o.config.TargetVersion = sourceVersion
+		o.trackRollingUpgrade(ctx, pods)
+		o.config.TargetVersion = origTarget
+	}()
+
+	o.collector.AddAlert(models.Alert{
+		ID:        fmt.Sprintf("downgrade-started-%d", time.Now().Unix()),
+		Severity:  "warning",
+		Category:  "upgrade",
+		Title:     "Downgrade Initiated",
+		Message:   fmt.Sprintf("Rolling back %s to v%s", clusterName, sourceVersion),
+		Source:    "orchestrator",
+		Timestamp: time.Now(),
+	})
+
+	return nil
+}
+
 // GetStatus returns the current upgrade status.
 func (o *Orchestrator) GetStatus() models.UpgradeStatus {
 	o.mu.RLock()
