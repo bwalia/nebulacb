@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="NebulaCB — The Complete Couchbase Management Platform. Upgrade fearlessly. Validate everything. Lose nothing." />
+  <meta name="theme-color" content="#0a0a1a" />
+  <title>NebulaCB — Couchbase Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a1a;
+      --surface: #12122a;
+      --surface-2: #1a1a35;
+      --card: #222245;
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(170,136,255,0.3);
+      --text: #e0e0ff;
+      --text-secondary: #8888aa;
+      --text-muted: #6666888;
+      --purple: #aa88ff;
+      --purple-light: #cc99ff;
+      --blue: #00aaff;
+      --green: #00ff88;
+      --amber: #ffaa00;
+      --red: #ff4444;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 18px; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--text);
+      -webkit-font-smoothing: antialiased; line-height: 1.6;
+    }
+    a { color: var(--purple); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--purple-light); }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+    img { max-width: 100%; display: block; }
+
+    /* ===== NAV ===== */
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 32px; background: rgba(10,10,26,0.85);
+      backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.2rem; letter-spacing: 1px; }
+    .nav-logo-icon { color: var(--purple); font-size: 1.5rem; }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-secondary); font-size: 0.8rem; font-weight: 500; letter-spacing: 0.5px; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      padding: 8px 20px; background: var(--purple); color: #fff !important;
+      border-radius: 6px; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.5px;
+      transition: filter 0.2s;
+    }
+    .nav-cta:hover { filter: brightness(1.2); color: #fff; }
+    .nav-mobile { display: none; background: none; border: none; color: var(--text); font-size: 1.5rem; cursor: pointer; }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative; padding: 100px 32px 80px; text-align: center;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 20%, rgba(170,136,255,0.08) 0%, transparent 70%),
+                  radial-gradient(ellipse 40% 40% at 30% 60%, rgba(0,170,255,0.05) 0%, transparent 60%),
+                  radial-gradient(ellipse 40% 40% at 70% 60%, rgba(0,255,136,0.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 20px;
+      background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.2);
+      color: var(--green); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;
+      margin-bottom: 24px;
+    }
+    .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.15;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 20px; position: relative;
+    }
+    .hero-sub {
+      font-size: clamp(0.9rem, 2vw, 1.15rem); color: var(--text-secondary);
+      max-width: 680px; margin: 0 auto 36px; line-height: 1.7; position: relative;
+    }
+    .hero-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: 8px; font-weight: 600;
+      font-size: 0.85rem; letter-spacing: 0.5px; transition: all 0.2s; border: none; cursor: pointer;
+    }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); color: #fff; }
+    .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--border-hover); transform: translateY(-1px); color: var(--text); }
+    .hero-trust {
+      display: flex; gap: 32px; justify-content: center; flex-wrap: wrap;
+      margin-top: 48px; position: relative;
+    }
+    .trust-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;
+    }
+    .trust-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ===== SECTIONS ===== */
+    .section { padding: 80px 32px; max-width: 1200px; margin: 0 auto; }
+    .section-alt { background: var(--surface); }
+    .section-header { text-align: center; margin-bottom: 48px; }
+    .section-header h2 {
+      font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; margin-bottom: 12px;
+    }
+    .section-header p { color: var(--text-secondary); max-width: 600px; margin: 0 auto; font-size: 0.9rem; }
+    .section-divider {
+      width: 48px; height: 3px; background: var(--purple); border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    /* ===== HIGHLIGHTS GRID ===== */
+    .highlights { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .highlight-card {
+      padding: 24px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius); transition: all 0.2s; text-align: center;
+    }
+    .highlight-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .highlight-icon { font-size: 2rem; margin-bottom: 12px; }
+    .highlight-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; }
+    .highlight-desc { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5; }
+
+    /* ===== FEATURES ===== */
+    .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .feature-card {
+      padding: 28px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius); transition: all 0.2s;
+    }
+    .feature-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .feature-icon-box {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: rgba(170,136,255,0.1); display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; margin-bottom: 16px;
+    }
+    .feature-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; }
+    .feature-list { list-style: none; margin-top: 12px; }
+    .feature-list li {
+      font-size: 0.78rem; color: var(--text-secondary); padding: 4px 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .feature-list li::before { content: '\2713'; color: var(--green); font-weight: 700; font-size: 0.7rem; }
+
+    /* ===== HOW IT WORKS ===== */
+    .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
+    .step-card {
+      padding: 28px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius); text-align: center; counter-increment: step;
+    }
+    .step-card::before {
+      content: counter(step);
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--purple); color: #fff; font-weight: 700; font-size: 0.85rem;
+      margin: 0 auto 16px;
+    }
+    .step-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 8px; }
+    .step-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
+
+    /* ===== DASHBOARD PREVIEW ===== */
+    .preview-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .preview-card {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; transition: all 0.2s;
+    }
+    .preview-card:hover { border-color: var(--border-hover); }
+    .preview-img {
+      width: 100%; aspect-ratio: 16/9; background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem; color: var(--text-secondary); opacity: 0.3;
+    }
+    .preview-caption {
+      padding: 16px; font-size: 0.8rem; font-weight: 600;
+      border-top: 1px solid var(--border);
+    }
+    .preview-caption-desc { font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; }
+
+    /* ===== INSTALL TABS ===== */
+    .install-tabs { display: flex; gap: 4px; margin-bottom: 20px; justify-content: center; }
+    .install-tab {
+      padding: 10px 22px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+      color: var(--text-secondary); transition: all 0.2s; font-family: inherit; border-bottom: none;
+    }
+    .install-tab.active { background: var(--card); color: var(--purple); border-color: var(--border-hover); }
+    .install-content {
+      display: none; padding: 28px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 0 var(--radius) var(--radius) var(--radius);
+    }
+    .install-content.active { display: block; }
+    .install-content h4 { font-size: 0.85rem; margin-bottom: 12px; color: var(--blue); }
+    .code-block {
+      padding: 16px 20px; background: #0a0a14; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; line-height: 1.7; color: var(--green); overflow-x: auto;
+      white-space: pre; margin-bottom: 16px;
+    }
+    .code-comment { color: var(--text-muted); }
+
+    /* ===== AI SECTION ===== */
+    .ai-features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .ai-card {
+      padding: 28px; border-radius: var(--radius); border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .ai-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .ai-card-icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .ai-card-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .ai-card-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; }
+    .ai-card-example {
+      margin-top: 12px; padding: 12px; background: rgba(0,0,0,0.3);
+      border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem; color: var(--amber); line-height: 1.5;
+    }
+
+    /* ===== CTA ===== */
+    .cta-section {
+      position: relative; padding: 80px 32px; text-align: center;
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .cta-section::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 50% 60% at 50% 50%, rgba(170,136,255,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-section h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin-bottom: 16px; position: relative; }
+    .cta-section p { color: var(--text-secondary); max-width: 500px; margin: 0 auto 28px; font-size: 0.9rem; position: relative; }
+
+    /* ===== ARCH DIAGRAM ===== */
+    .arch-container {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; margin-top: 20px; overflow-x: auto;
+    }
+    .arch-container pre {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+      color: var(--text-secondary); line-height: 1.5; white-space: pre;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      padding: 32px; text-align: center;
+      border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 0.75rem;
+    }
+    .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 12px; }
+
+    /* ===== TABLE ===== */
+    .config-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.78rem; }
+    .config-table th {
+      text-align: left; padding: 10px 14px; background: var(--card);
+      border: 1px solid var(--border); color: var(--text-secondary);
+      font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; font-size: 0.7rem;
+    }
+    .config-table td {
+      padding: 10px 14px; border: 1px solid var(--border); vertical-align: top;
+    }
+    .config-table tr:hover td { background: rgba(170,136,255,0.03); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .highlights { grid-template-columns: repeat(2, 1fr); }
+      .steps-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-mobile { display: block; }
+      .highlights { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .preview-grid { grid-template-columns: 1fr; }
+      .ai-features { grid-template-columns: 1fr; }
+      .hero-buttons { flex-direction: column; align-items: center; }
+      .hero-trust { flex-direction: column; align-items: center; }
+      .section { padding: 48px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAVIGATION ===== -->
+<nav class="nav">
+  <div class="nav-logo">
+    <span class="nav-logo-icon">&#x25C8;</span> NebulaCB
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#ai">AI</a>
+    <a href="#install">Install</a>
+    <a href="#architecture">Architecture</a>
+    <a href="https://github.com/bwalia/nebulacb" class="nav-cta">GitHub</a>
+  </div>
+  <button class="nav-mobile" onclick="document.querySelector('.nav-links').style.display=document.querySelector('.nav-links').style.display==='flex'?'none':'flex'">&#9776;</button>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="hero-badge-dot"></span>
+    Open Source &middot; Kubernetes-Native &middot; AI-Powered
+  </div>
+  <h1>Upgrade Fearlessly.<br>Validate Everything.<br>Lose Nothing.</h1>
+  <p class="hero-sub">
+    NebulaCB is the complete Couchbase management platform. Orchestrate rolling upgrades,
+    validate XDCR replication integrity, monitor multi-cluster health, and get AI-powered
+    root cause analysis &mdash; all from a mission-control cockpit dashboard.
+  </p>
+  <div class="hero-buttons">
+    <a href="#install" class="btn btn-primary">Get Started</a>
+    <a href="https://github.com/bwalia/nebulacb" class="btn btn-secondary">View on GitHub</a>
+  </div>
+  <div class="hero-trust">
+    <span class="trust-item"><span class="trust-dot" style="background:var(--green)"></span> Zero Data Loss Validation</span>
+    <span class="trust-item"><span class="trust-dot" style="background:var(--blue)"></span> Kubernetes-Aware Upgrades</span>
+    <span class="trust-item"><span class="trust-dot" style="background:var(--purple)"></span> Bidirectional XDCR</span>
+    <span class="trust-item"><span class="trust-dot" style="background:var(--amber)"></span> Local AI with Ollama</span>
+  </div>
+</section>
+
+<!-- ===== HIGHLIGHTS ===== -->
+<section class="section">
+  <div class="highlights">
+    <div class="highlight-card">
+      <div class="highlight-icon">&#x1F680;</div>
+      <div class="highlight-title">Rolling Upgrades</div>
+      <div class="highlight-desc">Helm-based orchestration with pause, resume, abort, and rollback. Track node-by-node progress in real time.</div>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">&#x1F50D;</div>
+      <div class="highlight-title">Data Integrity</div>
+      <div class="highlight-desc">SHA-256 hash validation, sequence gap detection, and continuous doc-count monitoring across clusters.</div>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">&#x1F916;</div>
+      <div class="highlight-title">AI Analysis</div>
+      <div class="highlight-desc">Local Ollama integration. Ask AI about cluster health, get root cause analysis, and auto-train on your logs.</div>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">&#x1F30D;</div>
+      <div class="highlight-title">Multi-Region</div>
+      <div class="highlight-desc">Manage clusters across regions with cross-region XDCR, automatic failover, and region-aware monitoring.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section class="section-alt" id="features">
+  <div class="section" style="padding-top:60px;padding-bottom:60px;">
+    <div class="section-header">
+      <div class="section-divider"></div>
+      <h2>Everything You Need to Manage Couchbase</h2>
+      <p>From rolling upgrades to AI-powered troubleshooting, NebulaCB covers every aspect of Couchbase cluster lifecycle management.</p>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x2699;&#xFE0F;</div>
+        <div class="feature-title">Upgrade Orchestrator</div>
+        <div class="feature-desc">
+          Automate Couchbase rolling upgrades via the Kubernetes Operator. NebulaCB patches the CouchbaseCluster CR image, monitors pod rollover, and tracks rebalance completion.
+        </div>
+        <ul class="feature-list">
+          <li>Helm-based rolling upgrade via CouchbaseCluster CR</li>
+          <li>Pre-check validation (all nodes ready)</li>
+          <li>Node-by-node progress tracking (10s poll)</li>
+          <li>Downgrade button to roll back to previous version</li>
+          <li>Abort to stop tracking mid-upgrade</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F501;</div>
+        <div class="feature-title">XDCR Replication Management</div>
+        <div class="feature-desc">
+          Monitor cross-datacenter replication in real time. Track replication lag, pipeline restarts, topology changes, and GOXDCR delay with a 5-minute countdown timer.
+        </div>
+        <ul class="feature-list">
+          <li>Bidirectional XDCR monitoring (source &#x2194; target)</li>
+          <li>Pipeline pause / resume / restart / stop controls</li>
+          <li>GOXDCR delay detection with countdown timer</li>
+          <li>Topology change tracking during upgrades</li>
+          <li>Integrated XDCR troubleshooting modal</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x2705;</div>
+        <div class="feature-title">Data Integrity Validation</div>
+        <div class="feature-desc">
+          Continuous proof that zero data loss occurs during upgrades. Compare source and target clusters with hash verification and sequence gap detection.
+        </div>
+        <ul class="feature-list">
+          <li>Document count timeline with delta convergence chart</li>
+          <li>SHA-256 hash sampling for content verification</li>
+          <li>Sequence gap detection for ordered streams</li>
+          <li>Full audit on demand (all keys compared)</li>
+          <li>Real-time convergence status (ZERO LOSS CONFIRMED)</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x26A1;</div>
+        <div class="feature-title">Storm Load Generator</div>
+        <div class="feature-desc">
+          Simulate production traffic during upgrades. Generate writes, reads, and deletes with configurable rates, burst patterns, and hot-key distributions.
+        </div>
+        <ul class="feature-list">
+          <li>Configurable writes/reads per second and doc sizes</li>
+          <li>Burst mode with multiplier and interval</li>
+          <li>Hot key percentage for realistic access patterns</li>
+          <li>Standalone xdcr-loadtest script for dual-cluster writes</li>
+          <li>Real-time latency P50/P95/P99 tracking</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F6E1;&#xFE0F;</div>
+        <div class="feature-title">HA &amp; Automatic Failover</div>
+        <div class="feature-desc">
+          Configure automatic failover with health checks, timeout thresholds, and recovery modes. Supports manual and graceful failover between clusters.
+        </div>
+        <ul class="feature-list">
+          <li>Auto-failover with configurable timeout</li>
+          <li>Manual and graceful failover triggers</li>
+          <li>Failover history and event timeline</li>
+          <li>Cross-region failover support</li>
+          <li>Preserve data mode for safe recovery</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F4BE;</div>
+        <div class="feature-title">Backup &amp; Restore</div>
+        <div class="feature-desc">
+          Scheduled backups with retention policies, compression, and encryption. Restore to any cluster with progress tracking.
+        </div>
+        <ul class="feature-list">
+          <li>Cron-based backup scheduling</li>
+          <li>Compression and encryption options</li>
+          <li>Configurable retention (days)</li>
+          <li>Point-in-time restore to any cluster</li>
+          <li>Repository size and health monitoring</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F4E6;</div>
+        <div class="feature-title">Data Migration</div>
+        <div class="feature-desc">
+          Migrate data between clusters with parallel workers, batch processing, and optional transformation rules. Validates integrity after migration.
+        </div>
+        <ul class="feature-list">
+          <li>Parallel worker pool (configurable)</li>
+          <li>Batch processing with retry logic</li>
+          <li>Transform rules (rename, convert, filter)</li>
+          <li>Post-migration validation</li>
+          <li>Progress tracking with ETA</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x2638;&#xFE0F;</div>
+        <div class="feature-title">Kubernetes Operator Integration</div>
+        <div class="feature-desc">
+          Deep integration with the Couchbase Autonomous Operator. Auto-discovers pods, manages NodePort exposure, and patches CRDs for upgrades.
+        </div>
+        <ul class="feature-list">
+          <li>Auto port-forwarding for k8s clusters</li>
+          <li>Direct NodePort access with kv_port config</li>
+          <li>CouchbaseCluster CR patching for upgrades</li>
+          <li>Pod discovery and health monitoring</li>
+          <li>Helm chart for deploying NebulaCB itself</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== DASHBOARD ===== -->
+<section class="section" id="dashboard">
+  <div class="section-header">
+    <div class="section-divider"></div>
+    <h2>Mission Control Dashboard</h2>
+    <p>A cockpit-style interface with real-time WebSocket updates, live cluster health, XDCR flow visualization, and one-click controls.</p>
+  </div>
+  <div class="preview-grid">
+    <div class="preview-card">
+      <div class="preview-img">&#x1F4CA;</div>
+      <div class="preview-caption">
+        Cluster Health &amp; Metrics
+        <div class="preview-caption-desc">Node status, CPU/memory, ops/sec, doc counts, version, edition, rebalance state per cluster.</div>
+      </div>
+    </div>
+    <div class="preview-card">
+      <div class="preview-img">&#x1F501;</div>
+      <div class="preview-caption">
+        XDCR Replication Flow
+        <div class="preview-caption-desc">Visual pipeline: source &rarr; target with lag, restarts, topology changes, mutation queue, GOXDCR delay.</div>
+      </div>
+    </div>
+    <div class="preview-card">
+      <div class="preview-img">&#x2705;</div>
+      <div class="preview-caption">
+        Data Loss Proof Panel
+        <div class="preview-caption-desc">Doc count timeline, delta convergence chart, hash sampling results, monitoring duration, zero-loss verdict.</div>
+      </div>
+    </div>
+    <div class="preview-card">
+      <div class="preview-img">&#x1F3AE;</div>
+      <div class="preview-caption">
+        Control Panel
+        <div class="preview-caption-desc">16 action buttons: load, upgrade, downgrade, XDCR, audit, AI analyze, backup, failover, chaos injection.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:32px;">
+    <div class="section-header" style="margin-bottom:24px;">
+      <h2 style="font-size:1.3rem;">Tab Navigation</h2>
+    </div>
+    <div class="highlights" style="grid-template-columns:repeat(5,1fr);">
+      <div class="highlight-card"><div class="highlight-icon">&#x25C8;</div><div class="highlight-title">Dashboard</div><div class="highlight-desc">Main cockpit view with all panels</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F916;</div><div class="highlight-title">Ask AI</div><div class="highlight-desc">Chat with AI about cluster issues</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F50D;</div><div class="highlight-title">RCA</div><div class="highlight-desc">Root cause analysis reports</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4DA;</div><div class="highlight-title">Knowledge Base</div><div class="highlight-desc">12+ built-in troubleshooting guides</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4CA;</div><div class="highlight-title">AI Insights</div><div class="highlight-desc">History of all AI analyses</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== AI SECTION ===== -->
+<section class="section-alt" id="ai">
+  <div class="section" style="padding-top:60px;padding-bottom:60px;">
+    <div class="section-header">
+      <div class="section-divider"></div>
+      <h2>AI-Powered Analysis with Ollama</h2>
+      <p>Run AI locally with Ollama &mdash; no cloud API keys needed. NebulaCB learns from your cluster logs and metrics to provide context-aware recommendations.</p>
+    </div>
+    <div class="ai-features">
+
+      <div class="ai-card" style="background:var(--surface-2);">
+        <div class="ai-card-icon">&#x1F4AC;</div>
+        <div class="ai-card-title">Ask AI</div>
+        <div class="ai-card-desc">
+          Chat with NebulaCB AI about any cluster issue. It has full context of your cluster state, XDCR status, alerts, and metrics. Ask questions in natural language and get actionable answers.
+        </div>
+        <div class="ai-card-example">
+          &gt; "Why is XDCR replication lag increasing?"<br>
+          &gt; "Is the cluster ready for an upgrade?"<br>
+          &gt; "Analyze performance bottlenecks"<br>
+          &gt; "What's the best backup strategy?"
+        </div>
+      </div>
+
+      <div class="ai-card" style="background:var(--surface-2);">
+        <div class="ai-card-icon">&#x1F50D;</div>
+        <div class="ai-card-title">Root Cause Analysis</div>
+        <div class="ai-card-desc">
+          Trigger AI-powered RCA for specific categories: XDCR issues, upgrade failures, performance problems, failover events, backup errors, or data integrity concerns. Get structured reports with evidence chains and remediation steps.
+        </div>
+        <div class="ai-card-example">
+          Result: severity, root cause, evidence chain,<br>
+          remediation steps with risk levels + commands
+        </div>
+      </div>
+
+      <div class="ai-card" style="background:var(--surface-2);">
+        <div class="ai-card-icon">&#x1F4DA;</div>
+        <div class="ai-card-title">Knowledge Base</div>
+        <div class="ai-card-desc">
+          Built-in library of 12+ common Couchbase issues covering XDCR lag, pipeline restarts, stuck rebalances, auto-failover, backup failures, memory pressure, disk queues, and Kubernetes NodePort configuration. Searchable and filterable.
+        </div>
+        <div class="ai-card-example">
+          Categories: XDCR, Upgrade, Failover, Backup,<br>
+          Performance, Data Integrity, Configuration
+        </div>
+      </div>
+
+      <div class="ai-card" style="background:var(--surface-2);">
+        <div class="ai-card-icon">&#x1F9E0;</div>
+        <div class="ai-card-title">Ollama Integration</div>
+        <div class="ai-card-desc">
+          Run AI 100% locally with Ollama. No data leaves your network. Supports llama3, llama4, and any Ollama-compatible model. Also supports Anthropic Claude and OpenAI as cloud providers.
+        </div>
+        <div class="ai-card-example">
+          config.json:<br>
+          "ai": {<br>
+          &nbsp;&nbsp;"enabled": true,<br>
+          &nbsp;&nbsp;"provider": "ollama",<br>
+          &nbsp;&nbsp;"model": "llama3",<br>
+          &nbsp;&nbsp;"api_endpoint": "http://127.0.0.1:11434"<br>
+          }
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="section" id="how-it-works">
+  <div class="section-header">
+    <div class="section-divider"></div>
+    <h2>How It Works</h2>
+    <p>From setup to production-grade upgrade validation in four steps.</p>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-title">Deploy Clusters</div>
+      <div class="step-desc">Set up source and target Couchbase clusters via Docker Compose, k3s with the Couchbase Operator, or existing infrastructure. Configure XDCR replication between them.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-title">Configure NebulaCB</div>
+      <div class="step-desc">Edit config.json with cluster addresses, credentials, and NodePort KV ports. Enable AI with Ollama. Start the server with <code>make run</code>.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-title">Generate Load &amp; Upgrade</div>
+      <div class="step-desc">Start the Storm generator or xdcr-loadtest script to simulate production traffic. Trigger a rolling upgrade from the dashboard. Monitor XDCR and data integrity in real time.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-title">Validate &amp; Report</div>
+      <div class="step-desc">Run a full data audit after upgrade. Use AI to analyze any issues. Generate a comprehensive report with upgrade timeline, XDCR gap analysis, and zero-loss proof.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== INSTALLATION ===== -->
+<section class="section-alt" id="install">
+  <div class="section" style="padding-top:60px;padding-bottom:60px;">
+    <div class="section-header">
+      <div class="section-divider"></div>
+      <h2>Installation</h2>
+      <p>Three ways to get started with NebulaCB.</p>
+    </div>
+
+    <div class="install-tabs">
+      <button class="install-tab active" onclick="switchTab('source')">Build from Source</button>
+      <button class="install-tab" onclick="switchTab('docker')">Docker Compose</button>
+      <button class="install-tab" onclick="switchTab('helm')">Kubernetes / Helm</button>
+    </div>
+
+    <div class="install-content active" id="tab-source">
+      <h4>Build from Source (Go 1.24+)</h4>
+<div class="code-block"><span class="code-comment"># Clone and build</span>
+git clone https://github.com/bwalia/nebulacb.git
+cd nebulacb
+make build
+
+<span class="code-comment"># Configure your clusters</span>
+vim config.json
+
+<span class="code-comment"># Start the server</span>
+make run
+
+<span class="code-comment"># Open dashboard</span>
+open http://localhost:8899
+
+<span class="code-comment"># Login: admin / nebulacb</span></div>
+
+      <h4>Run the XDCR Load Test</h4>
+<div class="code-block"><span class="code-comment"># Send random writes to both clusters during upgrades</span>
+go run ./cmd/xdcr-loadtest/ -rate 100 -duration 30m
+
+<span class="code-comment"># Custom: 70% to source, 30% to target, larger docs</span>
+go run ./cmd/xdcr-loadtest/ -rate 500 -ratio 0.7 -doc-min 1024 -doc-max 8192</div>
+
+      <h4>Enable AI with Ollama</h4>
+<div class="code-block"><span class="code-comment"># Install Ollama (macOS)</span>
+brew install ollama
+
+<span class="code-comment"># Pull a model</span>
+ollama pull llama3
+
+<span class="code-comment"># Update config.json</span>
+"ai": {
+  "enabled": true,
+  "provider": "ollama",
+  "model": "llama3",
+  "api_endpoint": "http://127.0.0.1:11434"
+}</div>
+    </div>
+
+    <div class="install-content" id="tab-docker">
+      <h4>Docker Compose (includes two Couchbase clusters)</h4>
+<div class="code-block"><span class="code-comment"># Start everything: NebulaCB + Couchbase 7.2.2 + Couchbase 7.6.0</span>
+docker-compose up -d
+
+<span class="code-comment"># Open dashboard at http://localhost:8080</span>
+<span class="code-comment"># Source cluster: http://localhost:8091</span>
+<span class="code-comment"># Target cluster: http://localhost:9091</span>
+
+<span class="code-comment"># Tear down</span>
+docker-compose down -v</div>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:12px;">After starting, initialize both Couchbase clusters, create the test bucket, and set up XDCR replication. See the <a href="https://github.com/bwalia/nebulacb#local-development-setup">README</a> for step-by-step instructions.</p>
+    </div>
+
+    <div class="install-content" id="tab-helm">
+      <h4>Deploy to Kubernetes with Helm</h4>
+<div class="code-block"><span class="code-comment"># Install NebulaCB</span>
+helm install nebulacb deploy/helm/nebulacb \
+  -n nebulacb --create-namespace
+
+<span class="code-comment"># Upgrade</span>
+helm upgrade nebulacb deploy/helm/nebulacb -n nebulacb
+
+<span class="code-comment"># Uninstall</span>
+helm uninstall nebulacb -n nebulacb</div>
+
+      <h4>Expose Couchbase Clusters via NodePort</h4>
+<div class="code-block"><span class="code-comment"># Patch Couchbase Operator for external access</span>
+kubectl patch couchbasecluster cb-local -n couchbase --type merge \
+  -p '{"spec":{"networking":{"exposedFeatures":["client","admin"]}}}'
+
+<span class="code-comment"># Set kv_port in config.json to skip port-forwarding</span>
+"source": {
+  "host": "192.168.1.193:32451",
+  "kv_port": 32419,
+  ...
+}</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ARCHITECTURE ===== -->
+<section class="section" id="architecture">
+  <div class="section-header">
+    <div class="section-divider"></div>
+    <h2>Architecture</h2>
+    <p>NebulaCB runs on your machine and connects to Couchbase clusters via REST API and the gocb SDK.</p>
+  </div>
+  <div class="arch-container">
+<pre>
+                             React Dashboard (:8899)
+                                    |
+                            WebSocket + REST API
+                                    |
+                          NebulaCB Go Server
+                    /    |    |    |    |    |    \
+              Storm  XDCR  Validator  Orchestrator  Monitor  AI   Failover
+                |      |      |           |           |      |      |
+             ClientPool (gocb SDK + REST + NodePort connections)
+              /                                                   \
+   Couchbase Source                                      Couchbase Target
+   (k8s / docker / native)                              (k8s / docker / native)
+              \_____________________ XDCR _____________________/
+                              (bidirectional)
+
+   Local AI: Ollama (llama3) at 127.0.0.1:11434
+   Metrics: Prometheus endpoint at :9090/metrics
+</pre>
+  </div>
+
+  <div style="margin-top:32px;">
+    <div class="section-header" style="margin-bottom:16px;"><h2 style="font-size:1.1rem;">CLI Commands</h2></div>
+    <table class="config-table">
+      <tr><th>Command</th><th>Description</th></tr>
+      <tr><td><code>nebulacb-cli status</code></td><td>Full dashboard status (clusters, upgrade, XDCR, load, integrity, alerts)</td></tr>
+      <tr><td><code>nebulacb-cli start-load</code></td><td>Start the Storm load generator</td></tr>
+      <tr><td><code>nebulacb-cli stop-load</code></td><td>Stop load generation</td></tr>
+      <tr><td><code>nebulacb-cli start-upgrade</code></td><td>Trigger rolling upgrade</td></tr>
+      <tr><td><code>nebulacb-cli abort-upgrade</code></td><td>Stop tracking the upgrade</td></tr>
+      <tr><td><code>nebulacb-cli restart-xdcr</code></td><td>Restart XDCR pipeline</td></tr>
+      <tr><td><code>nebulacb-cli run-audit</code></td><td>Run full data integrity audit</td></tr>
+      <tr><td><code>nebulacb-cli report</code></td><td>Generate post-upgrade report</td></tr>
+    </table>
+  </div>
+
+  <div style="margin-top:32px;">
+    <div class="section-header" style="margin-bottom:16px;"><h2 style="font-size:1.1rem;">Project Structure</h2></div>
+<div class="code-block" style="color:var(--text-secondary);">nebulacb/
+  cmd/
+    nebulacb/              <span style="color:var(--text-muted)"># Main server</span>
+    cli/                   <span style="color:var(--text-muted)"># CLI client</span>
+    xdcr-loadtest/         <span style="color:var(--text-muted)"># Dual-cluster load test</span>
+  internal/
+    ai/                    <span style="color:var(--text-muted)"># AI analyzer (Ollama/Claude/OpenAI)</span>
+    api/                   <span style="color:var(--text-muted)"># HTTP + WebSocket server</span>
+    storm/                 <span style="color:var(--text-muted)"># Load generator</span>
+    xdcr/                  <span style="color:var(--text-muted)"># XDCR replication engine</span>
+    validator/             <span style="color:var(--text-muted)"># Data integrity validation</span>
+    orchestrator/          <span style="color:var(--text-muted)"># Upgrade + downgrade</span>
+    failover/              <span style="color:var(--text-muted)"># HA & failover</span>
+    backup/                <span style="color:var(--text-muted)"># Backup & restore</span>
+    migration/             <span style="color:var(--text-muted)"># Data migration</span>
+    monitor/               <span style="color:var(--text-muted)"># Multi-cluster polling</span>
+    region/                <span style="color:var(--text-muted)"># Multi-region management</span>
+  pkg/
+    couchbase/             <span style="color:var(--text-muted)"># SDK client + connection pool</span>
+    kubernetes/            <span style="color:var(--text-muted)"># K8s client + port-forward</span>
+  web/nebulacb-ui/         <span style="color:var(--text-muted)"># React dashboard</span>
+  deploy/helm/nebulacb/    <span style="color:var(--text-muted)"># Helm chart</span></div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta-section">
+  <h2>Ready to Upgrade Fearlessly?</h2>
+  <p>Start managing your Couchbase clusters with confidence. Zero data loss guaranteed.</p>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;position:relative;">
+    <a href="#install" class="btn btn-primary">Get Started</a>
+    <a href="https://github.com/bwalia/nebulacb" class="btn btn-secondary">Star on GitHub</a>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="https://github.com/bwalia/nebulacb">GitHub</a>
+    <a href="https://github.com/bwalia/nebulacb#readme">Documentation</a>
+    <a href="https://github.com/bwalia/nebulacb/issues">Issues</a>
+  </div>
+  <div>&copy; 2026 NebulaCB &mdash; The Complete Couchbase Management Platform</div>
+  <div style="margin-top:6px;">Built with Go, React, and Couchbase SDK &middot; Open Source under MIT License</div>
+</footer>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.install-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+</script>
+
+</body>
+</html>
