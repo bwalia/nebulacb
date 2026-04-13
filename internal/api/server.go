@@ -28,6 +28,7 @@ import (
 	"github.com/balinderwalia/nebulacb/internal/xdcr"
 	"github.com/balinderwalia/nebulacb/pkg/couchbase"
 	"github.com/balinderwalia/nebulacb/pkg/docker"
+	"github.com/balinderwalia/nebulacb/pkg/kubernetes"
 	ws "github.com/balinderwalia/nebulacb/pkg/websocket"
 )
 
@@ -49,6 +50,7 @@ type Server struct {
 	migrationEngine *migration.Engine
 	regionMgr       *region.Manager
 	dockerClient    *docker.Client
+	k8sClient       *kubernetes.K8sClient
 
 	httpServer   *http.Server
 	sessions     *sessionStore
@@ -72,6 +74,7 @@ func NewServer(
 	migrationEngine *migration.Engine,
 	regionMgr *region.Manager,
 	dockerClient *docker.Client,
+	k8sClient *kubernetes.K8sClient,
 ) *Server {
 	return &Server{
 		config:          cfg,
@@ -89,6 +92,7 @@ func NewServer(
 		migrationEngine: migrationEngine,
 		regionMgr:       regionMgr,
 		dockerClient:    dockerClient,
+		k8sClient:       k8sClient,
 		sessions:        newSessionStore(),
 		startTime:       time.Now(),
 	}
@@ -155,6 +159,15 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/v1/cluster/edition", s.requireAuth(s.handleClusterEdition))
 	mux.HandleFunc("/api/v1/cluster/topology", s.requireAuth(s.handleClusterTopology))
 	mux.HandleFunc("/api/v1/cluster/logs", s.requireAuth(s.handleClusterLogs))
+
+	// Protected API routes — Enterprise: Logs, Events, Operator, Diagnostics, Runbooks
+	mux.HandleFunc("/api/v1/k8s/logs", s.requireAuth(s.handleK8sLogs))
+	mux.HandleFunc("/api/v1/k8s/events", s.requireAuth(s.handleK8sEvents))
+	mux.HandleFunc("/api/v1/k8s/operator", s.requireAuth(s.handleK8sOperator))
+	mux.HandleFunc("/api/v1/k8s/pods", s.requireAuth(s.handleK8sPods))
+	mux.HandleFunc("/api/v1/diagnostics", s.requireAuth(s.handleDiagnosticsBundle))
+	mux.HandleFunc("/api/v1/runbooks", s.requireAuth(s.handleRunbooks))
+	mux.HandleFunc("/api/v1/recommendations", s.requireAuth(s.handleRecommendations))
 
 	// WebSocket (auth via query param token)
 	mux.HandleFunc("/ws", s.handleAuthenticatedWS)
@@ -1337,6 +1350,344 @@ func (s *Server) handleClusterLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"cluster": clusterName, "logs": logs})
+}
+
+// ─── Enterprise: Logs, Events, Operator, Diagnostics, Runbooks ─────────────
+
+func (s *Server) handleK8sLogs(w http.ResponseWriter, r *http.Request) {
+	if s.k8sClient == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Kubernetes not configured"})
+		return
+	}
+	pod := r.URL.Query().Get("pod")
+	namespace := r.URL.Query().Get("namespace")
+	if pod == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pod parameter required"})
+		return
+	}
+	tailLines := 200
+	if t := r.URL.Query().Get("tail"); t != "" {
+		fmt.Sscanf(t, "%d", &tailLines)
+	}
+	sinceSeconds := 0
+	if s := r.URL.Query().Get("since"); s != "" {
+		fmt.Sscanf(s, "%d", &sinceSeconds)
+	}
+	logs, err := s.k8sClient.GetPodLogs(r.Context(), namespace, pod, tailLines, sinceSeconds)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"pod": pod, "namespace": namespace, "lines": strings.Split(strings.TrimSpace(logs), "\n"),
+	})
+}
+
+func (s *Server) handleK8sEvents(w http.ResponseWriter, r *http.Request) {
+	if s.k8sClient == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Kubernetes not configured"})
+		return
+	}
+	namespace := r.URL.Query().Get("namespace")
+	events, err := s.k8sClient.GetEvents(r.Context(), namespace)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *Server) handleK8sOperator(w http.ResponseWriter, r *http.Request) {
+	if s.k8sClient == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Kubernetes not configured"})
+		return
+	}
+	// Get operator status for all configured k8s clusters
+	configs := s.pool.Configs()
+	var results []interface{}
+	for name, cfg := range configs {
+		if cfg.Platform != "kubernetes" || cfg.Namespace == "" {
+			continue
+		}
+		status, err := s.k8sClient.GetOperatorStatus(r.Context(), name, cfg.Namespace)
+		if err != nil {
+			results = append(results, map[string]string{"cluster": name, "error": err.Error()})
+			continue
+		}
+		results = append(results, status)
+	}
+	writeJSON(w, http.StatusOK, results)
+}
+
+func (s *Server) handleK8sPods(w http.ResponseWriter, r *http.Request) {
+	if s.k8sClient == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Kubernetes not configured"})
+		return
+	}
+	namespace := r.URL.Query().Get("namespace")
+	pods, err := s.k8sClient.GetAllPodsInNamespace(r.Context(), namespace)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, pods)
+}
+
+func (s *Server) handleDiagnosticsBundle(w http.ResponseWriter, r *http.Request) {
+	// Build a diagnostics bundle with cluster state, XDCR, alerts, metrics
+	state := s.collector.GetDashboardState()
+	var k8sInfo interface{}
+	if s.k8sClient != nil {
+		configs := s.pool.Configs()
+		var opStatuses []interface{}
+		for name, cfg := range configs {
+			if cfg.Platform != "kubernetes" || cfg.Namespace == "" {
+				continue
+			}
+			status, err := s.k8sClient.GetOperatorStatus(r.Context(), name, cfg.Namespace)
+			if err != nil {
+				opStatuses = append(opStatuses, map[string]string{"cluster": name, "error": err.Error()})
+			} else {
+				opStatuses = append(opStatuses, status)
+			}
+		}
+		k8sInfo = opStatuses
+	}
+
+	bundle := map[string]interface{}{
+		"timestamp":        time.Now(),
+		"version":          "1.0.0",
+		"clusters":         state.Clusters,
+		"source_cluster":   state.SourceCluster,
+		"target_cluster":   state.TargetCluster,
+		"xdcr_status":      state.XDCRStatus,
+		"data_loss_proof":  state.DataLossProof,
+		"integrity_result": state.IntegrityResult,
+		"storm_metrics":    state.StormMetrics,
+		"upgrade_status":   state.UpgradeStatus,
+		"alerts":           state.Alerts,
+		"regions":          state.Regions,
+		"failover_status":  state.FailoverStatus,
+		"backup_status":    state.BackupStatus,
+		"migration_status": state.MigrationStatus,
+		"ai_insights":      state.AIInsights,
+		"k8s_operator":     k8sInfo,
+		"config": map[string]interface{}{
+			"source":  s.config.Source.Host,
+			"target":  s.config.Target.Host,
+			"storm":   s.config.Storm,
+			"upgrade": s.config.Upgrade,
+			"xdcr":    s.config.XDCR,
+		},
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=nebulacb-diagnostics.json")
+	writeJSON(w, http.StatusOK, bundle)
+}
+
+// Runbook represents a pre-built automated workflow.
+type Runbook struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	Steps       []string `json:"steps"`
+	Actions     []string `json:"actions"` // command actions to execute
+	Risk        string   `json:"risk"`
+}
+
+var runbooks = []Runbook{
+	{
+		ID: "safe-upgrade", Name: "Safe Couchbase Upgrade",
+		Description: "Validates cluster health, starts load test, performs rolling upgrade, monitors XDCR, and validates data integrity post-upgrade.",
+		Category: "upgrade", Risk: "medium",
+		Steps: []string{
+			"Pre-check: verify all nodes healthy and ready",
+			"Start Storm load generator for continuous traffic",
+			"Trigger rolling upgrade via Operator CR patch",
+			"Monitor XDCR pipeline restarts and lag",
+			"Wait for all nodes to reach target version",
+			"Run full data integrity audit",
+			"Generate upgrade report",
+		},
+		Actions: []string{"start_load", "start_upgrade", "run_audit", "generate_report"},
+	},
+	{
+		ID: "xdcr-validation", Name: "XDCR Validation Mode",
+		Description: "Runs bidirectional write test across both clusters and validates replication integrity with hash comparison.",
+		Category: "xdcr", Risk: "low",
+		Steps: []string{
+			"Verify XDCR replication is active (both directions)",
+			"Start xdcr-loadtest writing to both clusters",
+			"Monitor replication lag and changes_left",
+			"Wait for convergence (delta = 0)",
+			"Run data integrity audit with hash check",
+			"Verify zero data loss",
+		},
+		Actions: []string{"start_load", "run_audit"},
+	},
+	{
+		ID: "blue-green-migration", Name: "Blue/Green Migration",
+		Description: "Migrate traffic from source to target cluster using XDCR, with gradual traffic shift and validation at each stage.",
+		Category: "migration", Risk: "high",
+		Steps: []string{
+			"Ensure XDCR is active and caught up (changes_left = 0)",
+			"Run data integrity audit to confirm sync",
+			"Shift 10% read traffic to target cluster",
+			"Monitor target cluster performance and latency",
+			"Shift 50% traffic, then 100%",
+			"Verify all operations succeed on target",
+			"Decommission source cluster XDCR",
+		},
+		Actions: []string{"run_audit"},
+	},
+	{
+		ID: "dr-simulation", Name: "Disaster Recovery Simulation",
+		Description: "Simulates source cluster failure and validates failover to target cluster with zero data loss.",
+		Category: "failover", Risk: "high",
+		Steps: []string{
+			"Record current doc counts on both clusters",
+			"Trigger manual failover (promote target)",
+			"Verify target cluster accepts all traffic",
+			"Check data integrity — no missing documents",
+			"Restore source cluster and re-establish XDCR",
+			"Verify bidirectional sync resumes",
+		},
+		Actions: []string{"manual_failover", "run_audit"},
+	},
+	{
+		ID: "backup-restore-test", Name: "Backup & Restore Validation",
+		Description: "Creates a backup, restores to a test cluster, and validates restored data matches source.",
+		Category: "backup", Risk: "low",
+		Steps: []string{
+			"Trigger full backup of source cluster",
+			"Verify backup completed successfully",
+			"Restore backup to target cluster",
+			"Compare document counts source vs restored",
+			"Run hash-based integrity check",
+		},
+		Actions: []string{"start_backup", "run_audit"},
+	},
+}
+
+func (s *Server) handleRunbooks(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		writeJSON(w, http.StatusOK, runbooks)
+		return
+	}
+	if r.Method == "POST" {
+		var req struct {
+			RunbookID string `json:"runbook_id"`
+			Step      int    `json:"step"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		// Find the runbook
+		for _, rb := range runbooks {
+			if rb.ID == req.RunbookID {
+				if req.Step >= 0 && req.Step < len(rb.Actions) {
+					action := rb.Actions[req.Step]
+					result := s.executeCommand(r.Context(), models.Command{Action: action})
+					writeJSON(w, http.StatusOK, map[string]interface{}{
+						"runbook": rb.ID, "step": req.Step, "action": action, "result": result,
+					})
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]interface{}{
+					"runbook": rb.ID, "message": "Step index out of range or no action for this step",
+				})
+				return
+			}
+		}
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "runbook not found: " + req.RunbookID})
+		return
+	}
+	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET or POST"})
+}
+
+func (s *Server) handleRecommendations(w http.ResponseWriter, r *http.Request) {
+	state := s.collector.GetDashboardState()
+	var recs []map[string]string
+
+	// Analyze cluster state and generate recommendations
+	for name, cm := range state.Clusters {
+		if !cm.Healthy {
+			recs = append(recs, map[string]string{
+				"severity": "critical", "cluster": name,
+				"title":   "Cluster Unhealthy",
+				"message": fmt.Sprintf("Cluster %s is reporting unhealthy status. Check node health and connectivity.", name),
+			})
+		}
+		if cm.ResidentRatio > 0 && cm.ResidentRatio < 90 {
+			recs = append(recs, map[string]string{
+				"severity": "warning", "cluster": name,
+				"title":   "Low Resident Ratio",
+				"message": fmt.Sprintf("Cluster %s resident ratio is %.1f%%. Consider increasing RAM quota or adding nodes.", name, cm.ResidentRatio),
+			})
+		}
+		if cm.DiskWriteQueue > 10000 {
+			recs = append(recs, map[string]string{
+				"severity": "warning", "cluster": name,
+				"title":   "High Disk Write Queue",
+				"message": fmt.Sprintf("Cluster %s disk write queue is %.0f. Storage may be a bottleneck.", name, cm.DiskWriteQueue),
+			})
+		}
+		if len(cm.Nodes) == 1 {
+			recs = append(recs, map[string]string{
+				"severity": "warning", "cluster": name,
+				"title":   "Single Node Cluster",
+				"message": fmt.Sprintf("Cluster %s has only 1 node. Upgrades on single-node clusters cause downtime. Add nodes before upgrading.", name),
+			})
+		}
+	}
+
+	// XDCR recommendations
+	xdcr := state.XDCRStatus
+	if xdcr.ReplicationLag > 5000 {
+		recs = append(recs, map[string]string{
+			"severity": "warning", "cluster": "xdcr",
+			"title":   "High XDCR Replication Lag",
+			"message": fmt.Sprintf("Replication lag is %.0fms. Consider increasing nozzle count or checking target cluster resources.", xdcr.ReplicationLag),
+		})
+	}
+	if xdcr.ChangesLeft > 10000 {
+		recs = append(recs, map[string]string{
+			"severity": "warning", "cluster": "xdcr",
+			"title":   "Large Replication Backlog",
+			"message": fmt.Sprintf("XDCR has %d changes pending. Do not start an upgrade until backlog is cleared.", xdcr.ChangesLeft),
+		})
+	}
+
+	// Upgrade recommendations
+	upgrade := state.UpgradeStatus
+	if upgrade.Phase == "upgrading" && xdcr.ChangesLeft > 1000 {
+		recs = append(recs, map[string]string{
+			"severity": "critical", "cluster": "upgrade",
+			"title":   "Upgrade During High XDCR Backlog",
+			"message": "Upgrade is in progress while XDCR has a large backlog. Monitor closely for data integrity.",
+		})
+	}
+
+	// Data integrity
+	proof := state.DataLossProof
+	if proof.CurrentDelta != 0 && !proof.IsConverged {
+		recs = append(recs, map[string]string{
+			"severity": "warning", "cluster": "integrity",
+			"title":   "Document Count Delta",
+			"message": fmt.Sprintf("Source and target differ by %d documents. Run an audit to verify integrity.", proof.CurrentDelta),
+		})
+	}
+
+	if len(recs) == 0 {
+		recs = append(recs, map[string]string{
+			"severity": "info", "cluster": "all",
+			"title":   "All Clear",
+			"message": "No issues detected. All clusters are healthy and XDCR is in sync.",
+		})
+	}
+
+	writeJSON(w, http.StatusOK, recs)
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

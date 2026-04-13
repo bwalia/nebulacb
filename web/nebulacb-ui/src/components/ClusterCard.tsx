@@ -5,11 +5,13 @@ interface Props {
   cluster: ClusterMetrics;
   role: 'source' | 'target';
   upgrading?: boolean;
+  onReconnect?: () => void;
 }
 
-export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading }) => {
+export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading, onReconnect }) => {
   const accentColor = role === 'source' ? '#00aaff' : '#aa88ff';
   const healthy = cluster.healthy;
+  const noData = !cluster.cluster_name && !cluster.version && cluster.total_docs === 0;
 
   return (
     <div className="cluster-card" style={{ borderTopColor: accentColor }}>
@@ -21,7 +23,22 @@ export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading }) => {
         <div className={`cluster-health-badge ${healthy ? 'healthy' : 'unhealthy'}`}>
           {healthy ? 'HEALTHY' : 'DEGRADED'}
         </div>
+        {onReconnect && (
+          <button className="cluster-reconnect-btn" onClick={onReconnect} title="Reconnect to this cluster">
+            &#x21BB;
+          </button>
+        )}
       </div>
+      {noData && (
+        <div className="cluster-no-data">
+          <span>Waiting for cluster data...</span>
+          {onReconnect && (
+            <button className="cluster-reconnect-btn-large" onClick={onReconnect}>
+              &#x21BB; Reconnect
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="cluster-version-bar">
         <span className="version-label">v{cluster.version || '—'}</span>

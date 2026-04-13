@@ -214,7 +214,7 @@ func main() {
 	// API server
 	server := api.NewServer(
 		cfg, collector, hub, stormGen, orch, xdcrEngine, val, reporter, pool,
-		aiAnalyzer, backupMgr, failoverMgr, migrationEngine, regionMgr, dockerClient,
+		aiAnalyzer, backupMgr, failoverMgr, migrationEngine, regionMgr, dockerClient, k8sClient,
 	)
 
 	if err := server.Start(ctx); err != nil {

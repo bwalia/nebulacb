@@ -12,13 +12,17 @@ import { RCAPanel } from './components/RCAPanel';
 import { KnowledgeBasePanel } from './components/KnowledgeBasePanel';
 import { AIInsightsPanel } from './components/AIInsightsPanel';
 import { CockpitView } from './components/CockpitView';
+import { K8sLogsPanel } from './components/K8sLogsPanel';
+import { K8sEventsPanel } from './components/K8sEventsPanel';
+import { OperatorPanel } from './components/OperatorPanel';
+import { RunbooksPanel } from './components/RunbooksPanel';
 import {
   Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus,
   RegionStatus, FailoverStatus, BackupStatus, MigrationStatus, AIInsight,
 } from './types';
 import './App.css';
 
-type TabKey = 'cockpit' | 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights';
+type TabKey = 'cockpit' | 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights' | 'k8s-logs' | 'events' | 'operator' | 'runbooks';
 
 const emptyCluster: ClusterMetrics = {
   cluster_name: '', nodes: [], rebalance_state: 'none', total_docs: 0,
@@ -94,7 +98,7 @@ function App() {
 }
 
 function Dashboard({ onLogout }: { onLogout?: () => void }) {
-  const { state, connected } = useWebSocket();
+  const { state, connected, reconnect } = useWebSocket();
   const [activeTab, setActiveTab] = useState<TabKey>('cockpit');
 
   if (state?.storm_metrics) {
@@ -128,6 +132,12 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
   const aiInsights = state?.ai_insights || [];
   const upgrading = upgrade.phase === 'upgrading' || upgrade.phase === 'rebalancing';
 
+  // Extract k8s namespaces from cluster configs (for logs/events tabs)
+  const k8sNamespaces = Array.from(new Set(
+    Object.values(clusters).map(c => (c as any).namespace).filter(Boolean)
+  )) as string[];
+  if (k8sNamespaces.length === 0) k8sNamespaces.push('couchbase', 'couchbase-test');
+
   // Build ordered cluster list
   const clusterEntries = Object.entries(clusters);
   const sortedClusters = [
@@ -156,6 +166,9 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           <span className={`conn-badge ${connected ? 'live' : 'off'}`}>
             {connected ? 'LIVE' : 'OFFLINE'}
           </span>
+          <button className="reconnect-btn" onClick={reconnect} title="Force reconnect to clusters">
+            &#x21BB; Reconnect
+          </button>
           {clusterCount > 0 && (
             <span className="cluster-count-badge">{clusterCount} CLUSTERS</span>
           )}
@@ -188,8 +201,12 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           ['dashboard', 'Dashboard', '\u25C8'],
           ['ask-ai', 'Ask AI', '\uD83E\uDD16'],
           ['rca', 'RCA', '\uD83D\uDD0D'],
-          ['knowledge', 'Knowledge Base', '\uD83D\uDCDA'],
-          ['insights', 'AI Insights', '\uD83D\uDCCA'],
+          ['knowledge', 'Knowledge', '\uD83D\uDCDA'],
+          ['insights', 'Insights', '\uD83D\uDCCA'],
+          ['k8s-logs', 'Pod Logs', '\uD83D\uDCDC'],
+          ['events', 'Events', '\u26A1'],
+          ['operator', 'Operator', '\u2638\uFE0F'],
+          ['runbooks', 'Runbooks', '\uD83D\uDCCB'],
         ] as [TabKey, string, string][]).map(([key, label, icon]) => (
           <button
             key={key}
@@ -224,6 +241,11 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         {activeTab === 'rca' && <RCAPanel clusters={clusters} />}
         {activeTab === 'knowledge' && <KnowledgeBasePanel />}
         {activeTab === 'insights' && <AIInsightsPanel />}
+        {/* Enterprise Tabs */}
+        {activeTab === 'k8s-logs' && <K8sLogsPanel namespaces={k8sNamespaces} />}
+        {activeTab === 'events' && <K8sEventsPanel namespaces={k8sNamespaces} />}
+        {activeTab === 'operator' && <OperatorPanel />}
+        {activeTab === 'runbooks' && <RunbooksPanel />}
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && <>
@@ -267,12 +289,13 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                 cluster={cm}
                 role={name === source.cluster_name ? 'source' : name === target.cluster_name ? 'target' : 'source'}
                 upgrading={upgrading && name === source.cluster_name}
+                onReconnect={reconnect}
               />
             ))
           ) : (
             <>
-              <ClusterCard cluster={source} role="source" upgrading={upgrading} />
-              <ClusterCard cluster={target} role="target" />
+              <ClusterCard cluster={source} role="source" upgrading={upgrading} onReconnect={reconnect} />
+              <ClusterCard cluster={target} role="target" onReconnect={reconnect} />
             </>
           )}
         </section>

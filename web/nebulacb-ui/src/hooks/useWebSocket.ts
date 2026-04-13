@@ -104,6 +104,22 @@ export function useWebSocket() {
     }
   }, []);
 
+  const reconnect = useCallback(() => {
+    clearTimeout(reconnectTimeout.current);
+    if (ws.current) {
+      ws.current.onclose = null; // prevent auto-reconnect loop
+      ws.current.close();
+      ws.current = null;
+    }
+    setConnected(false);
+    // Force a REST fetch first for instant data, then re-establish WebSocket
+    fetch(`${apiBase()}/api/v1/dashboard`, { headers: authHeaders() })
+      .then(r => { if (r.ok) return r.json(); throw new Error('fetch failed'); })
+      .then(data => setState(data))
+      .catch(() => {});
+    setTimeout(connect, 300);
+  }, [connect]);
+
   useEffect(() => {
     connect();
     return () => {
@@ -112,7 +128,7 @@ export function useWebSocket() {
     };
   }, [connect]);
 
-  return { state, connected, sendCommand };
+  return { state, connected, sendCommand, reconnect };
 }
 
 // ─── REST API helpers ────────────────────────────────────────────────────────
