@@ -11,13 +11,14 @@ import { AskAIPanel } from './components/AskAIPanel';
 import { RCAPanel } from './components/RCAPanel';
 import { KnowledgeBasePanel } from './components/KnowledgeBasePanel';
 import { AIInsightsPanel } from './components/AIInsightsPanel';
+import { CockpitView } from './components/CockpitView';
 import {
   Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus,
   RegionStatus, FailoverStatus, BackupStatus, MigrationStatus, AIInsight,
 } from './types';
 import './App.css';
 
-type TabKey = 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights';
+type TabKey = 'cockpit' | 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights';
 
 const emptyCluster: ClusterMetrics = {
   cluster_name: '', nodes: [], rebalance_state: 'none', total_docs: 0,
@@ -94,7 +95,7 @@ function App() {
 
 function Dashboard({ onLogout }: { onLogout?: () => void }) {
   const { state, connected } = useWebSocket();
-  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabKey>('cockpit');
 
   if (state?.storm_metrics) {
     stormHistory.push(state.storm_metrics);
@@ -183,6 +184,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
       {/* Tab Navigation */}
       <nav className="tab-nav">
         {([
+          ['cockpit', 'Cockpit', '\uD83D\uDEF0'],
           ['dashboard', 'Dashboard', '\u25C8'],
           ['ask-ai', 'Ask AI', '\uD83E\uDD16'],
           ['rca', 'RCA', '\uD83D\uDD0D'],
@@ -201,6 +203,22 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
       </nav>
 
       <main className="main-layout">
+        {/* Cockpit Tab — Mission Control */}
+        {activeTab === 'cockpit' && (
+          <CockpitView
+            clusters={clusters}
+            source={source}
+            target={target}
+            xdcr={xdcr}
+            proof={proof}
+            storm={storm}
+            stormHistory={stormHistory}
+            upgrade={upgrade}
+            alerts={alerts}
+            onCommand={handleCommand}
+          />
+        )}
+
         {/* AI Tabs */}
         {activeTab === 'ask-ai' && <AskAIPanel clusters={clusters} />}
         {activeTab === 'rca' && <RCAPanel clusters={clusters} />}
