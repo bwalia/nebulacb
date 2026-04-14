@@ -1,0 +1,42 @@
+[Unit]
+Description=NebulaCB - The Complete Couchbase Management Platform
+Documentation=https://github.com/bwalia/nebulacb
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nebulacb
+Group=nebulacb
+WorkingDirectory=/usr/local/share/nebulacb
+ExecStart=/usr/local/bin/nebulacb --config /etc/nebulacb/config.json
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitInterval=60
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nebulacb
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nebulacb /var/log/nebulacb
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,65 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8899,
+    "auth": {
+      "enabled": false,
+      "username": "admin",
+      "password": "nebulacb"
+    }
+  },
+  "kubeconfig": "",
+  "source": {
+    "name": "cb-source",
+    "host": "127.0.0.1:8091",
+    "username": "Administrator",
+    "password": "password",
+    "bucket": "default",
+    "role": "source",
+    "region": "local",
+    "platform": "local"
+  },
+  "target": {
+    "name": "cb-target",
+    "host": "127.0.0.1:8092",
+    "username": "Administrator",
+    "password": "password",
+    "bucket": "default",
+    "role": "target",
+    "region": "local",
+    "platform": "local"
+  },
+  "storm": {
+    "writes_per_second": 100,
+    "reads_per_second": 50,
+    "doc_size_min": 1024,
+    "doc_size_max": 4096,
+    "workers": 4,
+    "key_prefix": "nebula"
+  },
+  "xdcr": {
+    "poll_interval": 5000000000,
+    "goxdcr_delay_alert": 300000000000
+  },
+  "validator": {
+    "batch_size": 1000,
+    "scan_interval": 30000000000,
+    "hash_check": false,
+    "sequence_check": false,
+    "key_sampling": 0.1
+  },
+  "metrics": {
+    "enabled": true,
+    "endpoint": "/metrics",
+    "port": 9090
+  },
+  "ai": {
+    "enabled": false,
+    "provider": "ollama",
+    "model": "llama3",
+    "api_endpoint": "http://127.0.0.1:11434"
+  },
+  "docker": {
+    "enabled": false
+  }
+}

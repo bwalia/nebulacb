@@ -370,6 +370,21 @@
     <div class="features-grid">
 
       <div class="feature-card">
+        <div class="feature-icon-box">&#x1F6F0;&#xFE0F;</div>
+        <div class="feature-title">Mission Control Cockpit</div>
+        <div class="feature-desc">
+          A NASA-style mission-control view that puts every signal you need on one screen. Status pill, 4-tile top strip (source / target / XDCR flow / load + alerts), full-width upgrade timeline, and a 3-column bottom row (live logs / data integrity / controls).
+        </div>
+        <ul class="feature-list">
+          <li>Glowing health tiles with pulsing animations</li>
+          <li>Phase rail with 6-stage upgrade tracking</li>
+          <li>Live event stream from XDCR + alerts + node state</li>
+          <li>Tail-style log panel with severity + source filters</li>
+          <li>Side-by-side data integrity proof + control buttons</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
         <div class="feature-icon-box">&#x2699;&#xFE0F;</div>
         <div class="feature-title">Upgrade Orchestrator</div>
         <div class="feature-desc">
@@ -489,6 +504,36 @@
         </ul>
       </div>
 
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F4DC;</div>
+        <div class="feature-title">K8s Observability Suite</div>
+        <div class="feature-desc">
+          Four new enterprise tabs that bring the rest of the cluster lifecycle into NebulaCB: pod logs, Kubernetes events, Operator state, and an opinionated runbook library &mdash; all without leaving the dashboard.
+        </div>
+        <ul class="feature-list">
+          <li>Pod Logs &mdash; live tail across namespaces</li>
+          <li>Events &mdash; real-time K8s event stream with filters</li>
+          <li>Operator &mdash; CouchbaseCluster CR + Operator health</li>
+          <li>Runbooks &mdash; built-in remediation playbooks</li>
+          <li>Force-reconnect button for SDK pool recovery</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box">&#x1F4E6;</div>
+        <div class="feature-title">System Packages &amp; systemd</div>
+        <div class="feature-desc">
+          First-class native install. Ships as <code>.deb</code> for Ubuntu/Debian, <code>.rpm</code> for CentOS/RHEL/Rocky/Alma/Fedora/openSUSE/SLES, plus a distro-aware shell installer. Runs under a hardened systemd unit on port 8899.
+        </div>
+        <ul class="feature-list">
+          <li>nfpm-built .deb and .rpm with pre/post hooks</li>
+          <li>install.sh detects Ubuntu/Debian/CentOS/SUSE</li>
+          <li>Hardened systemd unit (NoNewPrivileges, ProtectSystem)</li>
+          <li>Dedicated nebulacb system user, /etc/nebulacb config</li>
+          <li>Make targets: package-deb, package-rpm, install-local</li>
+        </ul>
+      </div>
+
     </div>
   </div>
 </section>
@@ -533,14 +578,20 @@
 
   <div style="margin-top:32px;">
     <div class="section-header" style="margin-bottom:24px;">
-      <h2 style="font-size:1.3rem;">Tab Navigation</h2>
+      <h2 style="font-size:1.3rem;">Tab Navigation &mdash; 10 Workspaces</h2>
+      <p style="font-size:0.85rem;">Cockpit is the new default. The legacy Dashboard tab stays for parity, and four new enterprise tabs bring K8s observability inside NebulaCB.</p>
     </div>
     <div class="highlights" style="grid-template-columns:repeat(5,1fr);">
-      <div class="highlight-card"><div class="highlight-icon">&#x25C8;</div><div class="highlight-title">Dashboard</div><div class="highlight-desc">Main cockpit view with all panels</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F6F0;&#xFE0F;</div><div class="highlight-title">Cockpit</div><div class="highlight-desc">Mission-control grid (default)</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x25C8;</div><div class="highlight-title">Dashboard</div><div class="highlight-desc">Legacy panel-stack view</div></div>
       <div class="highlight-card"><div class="highlight-icon">&#x1F916;</div><div class="highlight-title">Ask AI</div><div class="highlight-desc">Chat with AI about cluster issues</div></div>
       <div class="highlight-card"><div class="highlight-icon">&#x1F50D;</div><div class="highlight-title">RCA</div><div class="highlight-desc">Root cause analysis reports</div></div>
-      <div class="highlight-card"><div class="highlight-icon">&#x1F4DA;</div><div class="highlight-title">Knowledge Base</div><div class="highlight-desc">12+ built-in troubleshooting guides</div></div>
-      <div class="highlight-card"><div class="highlight-icon">&#x1F4CA;</div><div class="highlight-title">AI Insights</div><div class="highlight-desc">History of all AI analyses</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4DA;</div><div class="highlight-title">Knowledge</div><div class="highlight-desc">12+ built-in troubleshooting guides</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4CA;</div><div class="highlight-title">Insights</div><div class="highlight-desc">History of all AI analyses</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4DC;</div><div class="highlight-title">Pod Logs</div><div class="highlight-desc">Live K8s pod log tail</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x26A1;</div><div class="highlight-title">Events</div><div class="highlight-desc">Real-time Kubernetes events</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x2638;&#xFE0F;</div><div class="highlight-title">Operator</div><div class="highlight-desc">CouchbaseCluster CR &amp; operator state</div></div>
+      <div class="highlight-card"><div class="highlight-icon">&#x1F4CB;</div><div class="highlight-title">Runbooks</div><div class="highlight-desc">Opinionated remediation playbooks</div></div>
     </div>
   </div>
 </section>
@@ -647,11 +698,12 @@
     <div class="section-header">
       <div class="section-divider"></div>
       <h2>Installation</h2>
-      <p>Three ways to get started with NebulaCB.</p>
+      <p>Four ways to get started with NebulaCB.</p>
     </div>
 
     <div class="install-tabs">
       <button class="install-tab active" onclick="switchTab('source')">Build from Source</button>
+      <button class="install-tab" onclick="switchTab('package')">System Package</button>
       <button class="install-tab" onclick="switchTab('docker')">Docker Compose</button>
       <button class="install-tab" onclick="switchTab('helm')">Kubernetes / Helm</button>
     </div>
@@ -695,6 +747,57 @@ ollama pull llama3
   "model": "llama3",
   "api_endpoint": "http://127.0.0.1:11434"
 }</div>
+    </div>
+
+    <div class="install-content" id="tab-package">
+      <h4>Native Install (Ubuntu / Debian / CentOS / RHEL / Rocky / Alma / Fedora / openSUSE / SLES)</h4>
+<div class="code-block"><span class="code-comment"># Build distributable .deb and .rpm with nfpm</span>
+make package          <span class="code-comment"># builds both .deb and .rpm into ./dist/</span>
+make package-deb      <span class="code-comment"># Ubuntu / Debian only</span>
+make package-rpm      <span class="code-comment"># CentOS / RHEL / Rocky / Alma / Fedora / openSUSE / SLES</span>
+
+<span class="code-comment"># Install on a Debian-family host</span>
+sudo dpkg -i dist/nebulacb_1.0.0_amd64.deb
+
+<span class="code-comment"># Install on an RPM-family host</span>
+sudo rpm -i dist/nebulacb-1.0.0-1.x86_64.rpm
+<span class="code-comment"># or, with dependency resolution:</span>
+sudo dnf install dist/nebulacb-1.0.0-1.x86_64.rpm
+sudo zypper install dist/nebulacb-1.0.0-1.x86_64.rpm</div>
+
+      <h4>Local Install via Shell Script (no package manager)</h4>
+<div class="code-block"><span class="code-comment"># Builds binary + UI, then installs system-wide</span>
+make install-local
+
+<span class="code-comment"># Or supply your own config to seed /etc/nebulacb/config.json</span>
+make install-local SOURCE_CONFIG=/path/to/config.json
+
+<span class="code-comment"># Service runs as user 'nebulacb' on port 8899</span>
+sudo systemctl status nebulacb
+sudo journalctl -u nebulacb -f
+curl http://localhost:8899/api/v1/health
+
+<span class="code-comment"># Uninstall (preserves /etc/nebulacb)</span>
+make uninstall-local
+<span class="code-comment"># Full purge (removes config, data, logs, user)</span>
+make uninstall-local ARGS=--purge</div>
+
+      <h4>What Gets Installed</h4>
+<div class="code-block">/usr/local/bin/nebulacb                    <span class="code-comment"># Static Go binary (~20 MB)</span>
+/usr/local/share/nebulacb/web/...          <span class="code-comment"># React UI build</span>
+/etc/nebulacb/config.json                  <span class="code-comment"># Editable config (0640 root:nebulacb)</span>
+/etc/systemd/system/nebulacb.service       <span class="code-comment"># Hardened systemd unit</span>
+/var/lib/nebulacb/                         <span class="code-comment"># State directory</span>
+/var/log/nebulacb/                         <span class="code-comment"># Log directory (journal also works)</span>
+
+<span class="code-comment"># Hardening flags in the unit:</span>
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true</div>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:12px;">After install, edit <code>/etc/nebulacb/config.json</code> to point at your Couchbase clusters and run <code>sudo systemctl restart nebulacb</code>. The dashboard is served at <code>http://&lt;host&gt;:8899</code>.</p>
     </div>
 
     <div class="install-content" id="tab-docker">

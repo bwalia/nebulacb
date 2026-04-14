@@ -9,17 +9,19 @@ Simulate, validate, and observe Couchbase cluster upgrades under real-world load
 ## Architecture
 
 ```
-                        React Dashboard (port 8080)
+                       React Dashboard (port 8899)
                                |
                           WebSocket + REST
                                |
                      NebulaCB API Server
-                    /    |    |    |    \
-              Storm  XDCR  Validator  Orchestrator  Monitor
-                |      |      |           |            |
-             ClientPool (SDK + REST connections)
+              /    |    |    |    |    |    |    \
+        Storm  XDCR  Validator  Orchestrator  Monitor  AI  Failover  K8s
+            |     |       |          |          |      |      |       |
+         ClientPool (SDK + REST + NodePort + Operator client)
               /                                  \
-   Couchbase Source (8091)              Couchbase Target (9091)
+   Couchbase Source                         Couchbase Target
+   (k8s / docker / native)                  (k8s / docker / native)
+              \____________ XDCR (bidirectional) ___________/
 ```
 
 **Core modules:**
@@ -46,6 +48,8 @@ Simulate, validate, and observe Couchbase cluster upgrades under real-world load
 - **Two Couchbase clusters** (source and target) accessible over the network
 - **kubectl** and **helm** (optional, for Kubernetes deployments)
 - **Docker** and **docker-compose** (optional, for local dev with containers)
+
+> **Want a one-line install on a Linux server?** Skip ahead to [Option D: System Package (`.deb` / `.rpm`) with systemd](#option-d-system-package-deb--rpm-with-systemd).
 
 ---
 
@@ -394,24 +398,146 @@ Set `platform: "kubernetes"` and `namespace` in config.json, and provide a `kube
 
 ---
 
+### Option D: System Package (`.deb` / `.rpm`) with systemd
+
+NebulaCB ships as native packages for **Ubuntu / Debian** (`.deb`) and **CentOS / RHEL / Rocky / Alma / Fedora / openSUSE / SLES** (`.rpm`), built with [nfpm](https://github.com/goreleaser/nfpm). All packages install a hardened systemd service that listens on **port 8899**.
+
+#### Build the packages
+
+```bash
+# Install nfpm once (writes to ~/go/bin)
+go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+export PATH=$PATH:$(go env GOPATH)/bin
+
+# Build .deb + .rpm into ./dist/
+make package
+
+# Or build a single format
+make package-deb     # Ubuntu / Debian
+make package-rpm     # CentOS / RHEL / Rocky / Alma / Fedora / openSUSE / SLES
+```
+
+This produces:
+```
+dist/nebulacb_1.0.0_amd64.deb
+dist/nebulacb-1.0.0-1.x86_64.rpm
+```
+
+#### Install via package manager
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i dist/nebulacb_1.0.0_amd64.deb
+
+# RHEL / CentOS / Rocky / Alma / Fedora
+sudo dnf install dist/nebulacb-1.0.0-1.x86_64.rpm
+# or:
+sudo rpm -i dist/nebulacb-1.0.0-1.x86_64.rpm
+
+# openSUSE / SLES
+sudo zypper install dist/nebulacb-1.0.0-1.x86_64.rpm
+```
+
+The package post-install hook automatically:
+- Creates the `nebulacb` system user
+- Creates `/etc/nebulacb`, `/var/lib/nebulacb`, `/var/log/nebulacb`
+- Reloads systemd, enables and starts `nebulacb.service`
+
+#### Install via shell script (no package manager)
+
+If you want to install directly from the source tree:
+
+```bash
+# Builds binary + UI, then installs system-wide
+make install-local
+
+# Seed /etc/nebulacb/config.json from your own file
+make install-local SOURCE_CONFIG=/path/to/config.json
+```
+
+#### Verify and operate
+
+```bash
+sudo systemctl status nebulacb       # check service
+sudo systemctl restart nebulacb      # after editing /etc/nebulacb/config.json
+sudo journalctl -u nebulacb -f       # tail logs
+curl http://localhost:8899/api/v1/health
+```
+
+#### What gets installed
+
+| Path | Purpose |
+|------|---------|
+| `/usr/local/bin/nebulacb` | Static Go binary (~20 MB) |
+| `/usr/local/share/nebulacb/web/nebulacb-ui/build/` | React UI bundle |
+| `/etc/nebulacb/config.json` | Editable config (`0640 root:nebulacb`) |
+| `/etc/systemd/system/nebulacb.service` | Hardened systemd unit |
+| `/var/lib/nebulacb/` | State directory |
+| `/var/log/nebulacb/` | Log directory (journal also captures everything) |
+
+The systemd unit applies these hardening flags:
+```
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LimitNOFILE=65536
+```
+
+#### Uninstall
+
+```bash
+# Preserve config + data
+sudo dpkg -r nebulacb            # Debian / Ubuntu
+sudo dnf remove nebulacb         # RHEL family
+sudo zypper remove nebulacb      # openSUSE / SLES
+
+# Or via the shell uninstaller
+make uninstall-local             # leaves /etc/nebulacb intact
+make uninstall-local ARGS=--purge  # full removal (config, data, logs, user)
+```
+
+The installer script auto-detects the host distribution from `/etc/os-release` and uses the right `useradd` / `adduser` flags for that family. See `deploy/install/install.sh` and `deploy/packaging/nfpm.yaml` for the full source.
+
+---
+
 ## Using the Dashboard
 
-The web dashboard is a mission-control cockpit with real-time updates via WebSocket.
+The web dashboard is a mission-control cockpit with real-time updates via WebSocket. It ships with **10 workspace tabs**:
 
-**Dashboard panels:**
-- **Cluster Health** — node status, versions, CPU/memory, rebalance state
-- **XDCR Replication** — lag, pipeline state, topology changes, GOXDCR delay timer
-- **Data Integrity** — doc counts, missing/extra keys, hash mismatches
-- **Load Metrics** — writes/sec, reads/sec, latency P50/P95/P99
-- **Upgrade Progress** — phase, node-by-node progress, availability %
+| Tab | Purpose |
+|-----|---------|
+| 🛰 **Cockpit** *(default)* | NASA-style mission-control grid: status pill, 4-tile top strip (source / target / XDCR flow / load + alerts), full-width upgrade timeline with phase rail, 3-column bottom row (live logs / data integrity / controls) |
+| ◈ **Dashboard** | Legacy panel-stack view (preserved for parity) |
+| 🤖 **Ask AI** | Chat with the AI about cluster issues — full context of state, XDCR, alerts, metrics |
+| 🔍 **RCA** | AI-powered root cause analysis with evidence chain + remediation |
+| 📚 **Knowledge** | 12+ built-in troubleshooting guides (XDCR, upgrade, failover, backup, perf, etc.) |
+| 📊 **Insights** | History of all AI analyses |
+| 📜 **Pod Logs** | Live tail of Couchbase / Operator pod logs across namespaces |
+| ⚡ **Events** | Real-time Kubernetes event stream with filters |
+| ☸ **Operator** | CouchbaseCluster CR + Operator health and status |
+| 📋 **Runbooks** | Opinionated remediation playbooks |
+
+**Cockpit panels (default tab):**
+- **Cluster Health** — node status, versions, CPU/memory, rebalance state, glowing health tiles
+- **XDCR Replication** — lag, pipeline state, topology changes, GOXDCR delay timer with countdown
+- **Data Integrity** — doc counts, delta convergence chart, hash mismatches, zero-loss verdict
+- **Load Metrics** — writes/sec, reads/sec, latency P50/P95/P99, streaming charts
+- **Upgrade Timeline** — 6-stage phase rail, progress bar, live event stream
+- **Live Logs** — tail-style log panel with severity + source filters, pause toggle
 - **Alerts** — data loss warnings, replication stalled, node failures
+- **Mission Control** — 16 action buttons (load, upgrade, downgrade, XDCR, audit, AI, backup, failover, chaos)
 
-**Control buttons (in the Control Panel):**
+**Control buttons (in the Mission Control Panel):**
 - Start / Pause / Resume / Stop Load
-- Start / Abort Upgrade
-- Restart XDCR
-- Inject Failure (chaos testing)
-- Run Audit (data integrity check)
+- Start / Abort Upgrade · **Downgrade** (rollback to previous version)
+- Pause / Resume / Stop / Restart XDCR · XDCR Troubleshoot
+- Run Audit · Inject Failure · AI Analyze
+- Backup · Manual Failover · Force Reconnect
 
 ---
 
@@ -661,6 +787,12 @@ make helm-install     # Install Helm chart to Kubernetes
 make helm-upgrade     # Upgrade Helm release
 make helm-uninstall   # Uninstall Helm release
 
+make package          # Build .deb + .rpm into ./dist/ (requires nfpm)
+make package-deb      # Ubuntu / Debian package only
+make package-rpm      # CentOS / RHEL / Fedora / openSUSE / SLES package only
+make install-local    # Install to /usr/local/bin + systemd (sudo)
+make uninstall-local  # Remove the local install (sudo)
+
 make start-load       # CLI: start load generation
 make stop-load        # CLI: stop load generation
 make start-upgrade    # CLI: start upgrade
@@ -743,13 +875,26 @@ nebulacb/
     kubernetes/        # K8s port-forwarding
     websocket/         # WebSocket hub
   web/
-    nebulacb-ui/       # React dashboard (TypeScript)
+    nebulacb-ui/       # React dashboard (TypeScript) — Cockpit + 9 other tabs
+      src/components/
+        CockpitView.tsx     # Mission-control grid
+        UpgradeTimeline.tsx # Centerpiece phase rail + event stream
+        LogsPanel.tsx       # Live log tail with filters
+        K8sLogsPanel.tsx    # Pod log streaming
+        K8sEventsPanel.tsx  # Kubernetes event stream
+        OperatorPanel.tsx   # CouchbaseCluster CR + Operator state
+        RunbooksPanel.tsx   # Built-in remediation playbooks
   deploy/
     helm/nebulacb/     # Kubernetes Helm chart
+    systemd/           # nebulacb.service unit (hardened)
+    install/           # install.sh, uninstall.sh, config.sample.json
+    packaging/         # nfpm.yaml + scripts/ for .deb / .rpm builds
+  docs/
+    landing/           # Public landing page (docs/landing/index.html)
   config.json          # Default configuration
   docker-compose.yaml  # Local dev with Couchbase containers
   Dockerfile           # Multi-stage Docker build
-  Makefile             # Build, run, deploy shortcuts
+  Makefile             # Build, run, deploy, package shortcuts
 ```
 
 ---
