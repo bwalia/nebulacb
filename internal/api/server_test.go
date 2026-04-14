@@ -45,7 +45,7 @@ func newTestServer(authEnabled bool) *Server {
 	regionMgr := region.NewManager(cfg.Regions, allClusters, collector)
 
 	return NewServer(cfg, collector, hub, stormGen, orch, xdcrEngine, val, reporter, pool,
-		aiAnalyzer, backupMgr, failoverMgr, migrationEngine, regionMgr, nil)
+		aiAnalyzer, backupMgr, failoverMgr, migrationEngine, regionMgr, nil, nil)
 }
 
 func TestHealthEndpoint(t *testing.T) {
