@@ -179,6 +179,10 @@ export interface BackupInfo {
   start_time: string;
   end_time?: string;
   error?: string;
+  mode?: string;
+  docs_exported?: number;
+  bytes_exported?: number;
+  path?: string;
 }
 
 export interface RestoreInfo {

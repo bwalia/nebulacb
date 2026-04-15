@@ -396,8 +396,29 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                   <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#00ff88' : '#ff4444' }}>
                     {backupStatus.last_backup.status}
                   </span> ({backupStatus.last_backup.cluster_name})</div>
+                  {backupStatus.last_backup.mode && (
+                    <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffaa00' : '#00aaff' }}>
+                      {backupStatus.last_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}
+                    </span></div>
+                  )}
                   {backupStatus.last_backup.duration_seconds > 0 && (
                     <div>Duration: {backupStatus.last_backup.duration_seconds.toFixed(1)}s</div>
+                  )}
+                  {!!backupStatus.last_backup.docs_exported && (
+                    <div>Docs: {backupStatus.last_backup.docs_exported.toLocaleString()}</div>
+                  )}
+                  {!!backupStatus.last_backup.bytes_exported && (
+                    <div>Size: {(backupStatus.last_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
+                  )}
+                  {backupStatus.last_backup.mode === 'ce-sdk' && (
+                    <div style={{ color: '#ffaa00', fontSize: 10, marginTop: 4 }}>
+                      CE mode — data only (no indexes / cluster config)
+                    </div>
+                  )}
+                  {backupStatus.last_backup.error && (
+                    <div style={{ color: '#ff4444', fontSize: 10, marginTop: 4 }}>
+                      {backupStatus.last_backup.error}
+                    </div>
                   )}
                 </div>
               </div>

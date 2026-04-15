@@ -442,17 +442,21 @@ type BackupStatus struct {
 
 // BackupInfo represents a single backup record.
 type BackupInfo struct {
-	ID          string    `json:"id"`
-	ClusterName string    `json:"cluster_name"`
-	Type        string    `json:"type"` // full, incremental, differential
-	Status      string    `json:"status"` // running, completed, failed
-	Size        string    `json:"size"`
-	Duration    float64   `json:"duration_seconds"`
-	Buckets     []string  `json:"buckets"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time,omitempty"`
-	Repository  string    `json:"repository"`
-	Error       string    `json:"error,omitempty"`
+	ID            string    `json:"id"`
+	ClusterName   string    `json:"cluster_name"`
+	Type          string    `json:"type"` // full, incremental, differential
+	Status        string    `json:"status"` // running, completed, failed
+	Size          string    `json:"size"`
+	Duration      float64   `json:"duration_seconds"`
+	Buckets       []string  `json:"buckets"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time,omitempty"`
+	Repository    string    `json:"repository"`
+	Error         string    `json:"error,omitempty"`
+	Mode          string    `json:"mode,omitempty"`           // "ee-cbbackupmgr" or "ce-sdk"
+	DocsExported  uint64    `json:"docs_exported,omitempty"`  // populated by CE backup
+	BytesExported uint64    `json:"bytes_exported,omitempty"` // populated by CE backup
+	Path          string    `json:"path,omitempty"`           // on-disk location of CE backup
 }
 
 // RestoreInfo represents an active restore operation.
@@ -465,6 +469,9 @@ type RestoreInfo struct {
 	Buckets       []string  `json:"buckets"`
 	StartTime     time.Time `json:"start_time"`
 	Error         string    `json:"error,omitempty"`
+	Mode          string    `json:"mode,omitempty"`          // "ee-cbbackupmgr" or "ce-sdk"
+	DocsRestored  uint64    `json:"docs_restored,omitempty"` // populated by CE restore
+	Errors        uint64    `json:"errors,omitempty"`        // per-doc error count
 }
 
 // ─── Data Migration ─────────────────────────────────────────────────────────

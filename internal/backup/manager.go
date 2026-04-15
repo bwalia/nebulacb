@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os/exec"
 	"strings"
 	"sync"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/balinderwalia/nebulacb/internal/metrics"
 	"github.com/balinderwalia/nebulacb/internal/models"
+	"github.com/balinderwalia/nebulacb/pkg/couchbase"
 )
 
 // Manager handles backup and restore operations for Couchbase clusters.
@@ -21,12 +20,21 @@ type Manager struct {
 	config    models.BackupConfig
 	clusters  map[string]models.ClusterConfig
 	collector *metrics.Collector
+	pool      *couchbase.ClientPool // optional; enables CE SDK-based backup
 
 	mu            sync.RWMutex
 	status        models.BackupStatus
 	activeBackup  *models.BackupInfo
 	activeRestore *models.RestoreInfo
 	backups       []models.BackupInfo
+}
+
+// SetPool wires a Couchbase SDK client pool, enabling the CE fallback path
+// (SDK-based JSONL export/import) when cbbackupmgr is not installed.
+func (m *Manager) SetPool(pool *couchbase.ClientPool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pool = pool
 }
 
 // NewManager creates a new backup manager.
@@ -100,35 +108,44 @@ func (m *Manager) runBackup(ctx context.Context, cfg models.ClusterConfig, backu
 
 	host := extractHost(cfg.Host)
 
-	// Use cbbackupmgr if available, otherwise fall back to REST API
-	if m.hasCBBackupMgr() {
-		err := m.runCBBackupMgr(ctx, host, cfg, backup)
-		if err != nil {
-			backup.Status = "failed"
-			backup.Error = err.Error()
-			backup.EndTime = time.Now()
-			backup.Duration = time.Since(backup.StartTime).Seconds()
-			m.collector.AddAlert(models.Alert{
-				ID:       fmt.Sprintf("backup-fail-%d", time.Now().Unix()),
-				Severity: "critical",
-				Category: "backup",
-				Title:    "Backup Failed",
-				Message:  fmt.Sprintf("Backup of %s failed: %s", backup.ClusterName, err.Error()),
-				Source:   "backup",
-				Timestamp: time.Now(),
-			})
-			return
+	// Prefer cbbackupmgr (Enterprise). If unavailable or it fails, fall back
+	// to the Go SDK JSONL export (CE-compatible). The legacy REST path
+	// (/controller/startBackup) is Enterprise-only and unreliable on CE
+	// clusters exposed via NodePort, so it is no longer used.
+	var runErr error
+	switch {
+	case m.hasCBBackupMgr():
+		backup.Mode = "ee-cbbackupmgr"
+		runErr = m.runCBBackupMgr(ctx, host, cfg, backup)
+		if runErr != nil && m.pool != nil {
+			log.Printf("[Backup] cbbackupmgr failed (%v) — falling back to SDK export", runErr)
+			backup.Mode = "ce-sdk"
+			runErr = m.runSDKBackup(ctx, cfg, backup)
 		}
-	} else {
-		// REST-based backup via bucket export
-		err := m.runRESTBackup(ctx, host, cfg, backup)
-		if err != nil {
-			backup.Status = "failed"
-			backup.Error = err.Error()
-			backup.EndTime = time.Now()
-			backup.Duration = time.Since(backup.StartTime).Seconds()
-			return
-		}
+	case m.pool != nil:
+		backup.Mode = "ce-sdk"
+		log.Printf("[Backup] cbbackupmgr not found — using SDK JSONL export (CE mode)")
+		runErr = m.runSDKBackup(ctx, cfg, backup)
+	default:
+		runErr = fmt.Errorf("no backup engine available: cbbackupmgr not installed and SDK pool not configured")
+	}
+
+	if runErr != nil {
+		backup.Status = "failed"
+		backup.Error = runErr.Error()
+		backup.EndTime = time.Now()
+		backup.Duration = time.Since(backup.StartTime).Seconds()
+		log.Printf("[Backup] FAILED %s (%s): %v", backup.ClusterName, backup.Mode, runErr)
+		m.collector.AddAlert(models.Alert{
+			ID:        fmt.Sprintf("backup-fail-%d", time.Now().Unix()),
+			Severity:  "critical",
+			Category:  "backup",
+			Title:     "Backup Failed",
+			Message:   fmt.Sprintf("Backup of %s failed (%s): %s", backup.ClusterName, backup.Mode, runErr.Error()),
+			Source:    "backup",
+			Timestamp: time.Now(),
+		})
+		return
 	}
 
 	backup.Status = "completed"
@@ -186,30 +203,6 @@ func (m *Manager) runCBBackupMgr(ctx context.Context, host string, cfg models.Cl
 	return nil
 }
 
-func (m *Manager) runRESTBackup(ctx context.Context, host string, cfg models.ClusterConfig, backup *models.BackupInfo) error {
-	// Trigger backup via REST API (Enterprise only)
-	url := fmt.Sprintf("http://%s/controller/startBackup", host)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth(cfg.Username, cfg.Password)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		// Fallback: use cbbackupmgr if REST not available (community edition)
-		return fmt.Errorf("REST backup not available (may be Community Edition): %w", err)
-	}
-	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("backup API returned HTTP %d", resp.StatusCode)
-	}
-	return nil
-}
-
 // StartRestore initiates a restore operation.
 func (m *Manager) StartRestore(ctx context.Context, backupID, targetCluster string, buckets []string) (*models.RestoreInfo, error) {
 	m.mu.Lock()
@@ -262,22 +255,41 @@ func (m *Manager) runRestore(ctx context.Context, cfg models.ClusterConfig, rest
 		repo = "/tmp/nebulacb-backups"
 	}
 
-	if m.hasCBBackupMgr() {
+	var runErr error
+	switch {
+	case m.hasCBBackupMgr():
+		restore.Mode = "ee-cbbackupmgr"
 		args := []string{
 			"restore", "--archive", repo, "--repo", restore.BackupID,
 			"--cluster", fmt.Sprintf("couchbase://%s", strings.Split(host, ":")[0]),
 			"--username", cfg.Username, "--password", cfg.Password,
 			"--force-updates",
 		}
-
 		cmd := exec.CommandContext(ctx, "cbbackupmgr", args...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			restore.Status = "failed"
-			restore.Error = fmt.Sprintf("cbbackupmgr restore: %s: %v", string(out), err)
-			return
+			runErr = fmt.Errorf("cbbackupmgr restore: %s: %w", string(out), err)
+			if m.pool != nil {
+				log.Printf("[Backup] cbbackupmgr restore failed (%v) — falling back to SDK import", runErr)
+				restore.Mode = "ce-sdk"
+				runErr = m.runSDKRestore(ctx, cfg, restore)
+			}
+		} else {
+			log.Printf("[Backup] cbbackupmgr restore output: %s", string(out))
 		}
-		log.Printf("[Backup] cbbackupmgr restore output: %s", string(out))
+	case m.pool != nil:
+		restore.Mode = "ce-sdk"
+		log.Printf("[Backup] cbbackupmgr not found — using SDK JSONL import (CE mode)")
+		runErr = m.runSDKRestore(ctx, cfg, restore)
+	default:
+		runErr = fmt.Errorf("no restore engine available: cbbackupmgr not installed and SDK pool not configured")
+	}
+
+	if runErr != nil {
+		restore.Status = "failed"
+		restore.Error = runErr.Error()
+		log.Printf("[Backup] Restore FAILED %s (%s): %v", restore.TargetCluster, restore.Mode, runErr)
+		return
 	}
 
 	restore.Status = "completed"

@@ -177,6 +177,7 @@ func main() {
 	// Backup Manager
 	var backupMgr *backup.Manager
 	backupMgr = backup.NewManager(cfg.Backup, allClusters, collector)
+	backupMgr.SetPool(pool) // enables CE SDK fallback when cbbackupmgr is absent
 	if cfg.Backup.Enabled {
 		log.Printf("[Main] Backup management enabled (schedule=%s repo=%s)", cfg.Backup.Schedule, cfg.Backup.Repository)
 	}
