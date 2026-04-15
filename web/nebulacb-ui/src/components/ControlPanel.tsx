@@ -19,6 +19,7 @@ const COUCHBASE_VERSIONS = [
 const buttons = [
   { label: 'Start Load', action: 'start_load', icon: '\u25B6', color: '#00ff88', group: 'load' },
   { label: 'Pause Load', action: 'pause_load', icon: '\u23F8', color: '#ffaa00', group: 'load' },
+  { label: 'Resume Load', action: 'resume_load', icon: '\u25B6', color: '#00ff88', group: 'load' },
   { label: 'Stop Load', action: 'stop_load', icon: '\u23F9', color: '#ff4444', group: 'load' },
   { label: 'Start Upgrade', action: 'start_upgrade', icon: '\uD83D\uDE80', color: '#00aaff', group: 'upgrade' },
   { label: 'Abort Upgrade', action: 'abort_upgrade', icon: '\uD83D\uDED1', color: '#ff4444', group: 'upgrade' },
@@ -126,6 +127,8 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
     } else if (action === 'xdcr_troubleshoot') {
       setShowXDCRTroubleshoot(true);
       fetchDiagnostics();
+    } else if (action === 'inject_failure') {
+      onCommand({ action, params: { type: 'xdcr_partition', target: 'replication' } });
     } else {
       onCommand({ action });
     }
@@ -294,18 +297,22 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
             <div className="modal-body">
               <div className="modal-field">
                 <label className="modal-label">Cluster to Backup</label>
-                <select
-                  className="modal-select"
-                  value={selectedCluster}
-                  onChange={(e) => setSelectedCluster(e.target.value)}
-                >
-                  <option value="">-- Select cluster --</option>
-                  {clusterList.map(([name, cm]) => (
-                    <option key={name} value={name}>
-                      {name} ({cm.total_docs?.toLocaleString()} docs)
-                    </option>
-                  ))}
-                </select>
+                {clusterList.length === 0 ? (
+                  <div className="modal-warning">Loading clusters...</div>
+                ) : (
+                  <select
+                    className="modal-select"
+                    value={selectedCluster}
+                    onChange={(e) => setSelectedCluster(e.target.value)}
+                  >
+                    <option value="">-- Select cluster --</option>
+                    {clusterList.map(([name, cm]) => (
+                      <option key={name} value={name}>
+                        {name} ({cm.total_docs?.toLocaleString()} docs)
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
             <div className="modal-footer">

@@ -72,7 +72,14 @@ func (m *Manager) StartBackup(ctx context.Context, clusterName, backupType strin
 	m.activeBackup = backup
 	m.mu.Unlock()
 
-	go m.runBackup(ctx, cfg, backup)
+	// Detach from the caller's context (typically an HTTP request context that
+	// is cancelled as soon as the response is written) so the long-running
+	// backup is not aborted the moment the API replies.
+	runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+	go func() {
+		defer cancel()
+		m.runBackup(runCtx, cfg, backup)
+	}()
 
 	log.Printf("[Backup] Started %s backup for cluster %s", backupType, clusterName)
 	return backup, nil
@@ -230,7 +237,12 @@ func (m *Manager) StartRestore(ctx context.Context, backupID, targetCluster stri
 	m.status.ActiveRestore = restore
 	m.mu.Unlock()
 
-	go m.runRestore(ctx, cfg, restore)
+	// Detach from the caller's context so the restore outlives the HTTP request.
+	runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+	go func() {
+		defer cancel()
+		m.runRestore(runCtx, cfg, restore)
+	}()
 
 	log.Printf("[Backup] Started restore of %s to cluster %s", backupID, targetCluster)
 	return restore, nil

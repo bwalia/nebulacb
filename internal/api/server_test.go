@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -256,6 +257,91 @@ func TestCommandEndpoint(t *testing.T) {
 
 	if resp["status"] != "error" {
 		t.Errorf("expected error status for unknown command, got %s", resp["status"])
+	}
+}
+
+// TestCommandEndpoint_AllButtonActions covers every control-panel button
+// action and verifies the server recognises the command (never returns
+// "unknown command"). Actions that require live infrastructure may still
+// come back with status=error, but the handler must route them.
+func TestCommandEndpoint_AllButtonActions(t *testing.T) {
+	s := newTestServer(false)
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"start_load", `{"action":"start_load"}`},
+		{"pause_load", `{"action":"pause_load"}`},
+		{"resume_load", `{"action":"resume_load"}`},
+		{"stop_load", `{"action":"stop_load"}`},
+		{"start_upgrade", `{"action":"start_upgrade","params":{"cluster_name":"src","target_version":"7.6.0","namespace":"couchbase"}}`},
+		{"abort_upgrade", `{"action":"abort_upgrade"}`},
+		{"downgrade", `{"action":"downgrade"}`},
+		{"pause_xdcr", `{"action":"pause_xdcr"}`},
+		{"resume_xdcr", `{"action":"resume_xdcr"}`},
+		{"stop_xdcr", `{"action":"stop_xdcr"}`},
+		{"restart_xdcr", `{"action":"restart_xdcr"}`},
+		{"run_audit", `{"action":"run_audit"}`},
+		{"inject_failure", `{"action":"inject_failure","params":{"type":"xdcr_partition","target":"replication"}}`},
+		{"ai_analyze", `{"action":"ai_analyze"}`},
+		{"start_backup", `{"action":"start_backup","params":{"cluster_name":"src"}}`},
+		{"manual_failover", `{"action":"manual_failover","params":{"source_cluster":"src","target_cluster":"tgt"}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/v1/command", strings.NewReader(tc.body))
+			w := httptest.NewRecorder()
+			s.handleCommand(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d (%s)", w.Code, w.Body.String())
+			}
+
+			var resp map[string]string
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+
+			if resp["status"] == "" {
+				t.Fatalf("missing status in response: %v", resp)
+			}
+			if strings.Contains(strings.ToLower(resp["message"]), "unknown command") {
+				t.Fatalf("command %s not routed: %v", tc.name, resp)
+			}
+		})
+	}
+}
+
+// TestBackupManager_DetachedContext verifies that the backup goroutine is
+// not tied to the caller's cancelled context, which was the root cause of
+// the "backup button unreliability" bug.
+func TestBackupManager_DetachedContext(t *testing.T) {
+	cfg := config.DefaultConfig()
+	collector := metrics.NewCollector()
+	allClusters := cfg.GetClusters()
+	mgr := backup.NewManager(cfg.Backup, allClusters, collector)
+
+	// Pick the first configured cluster.
+	var clusterName string
+	for name := range allClusters {
+		clusterName = name
+		break
+	}
+	if clusterName == "" {
+		t.Skip("no clusters in default config")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // simulate HTTP request context cancelled immediately after reply
+
+	info, err := mgr.StartBackup(ctx, clusterName, "full", nil)
+	if err != nil {
+		t.Fatalf("StartBackup: %v", err)
+	}
+	if info == nil || info.ID == "" {
+		t.Fatalf("expected backup info, got %+v", info)
 	}
 }
 

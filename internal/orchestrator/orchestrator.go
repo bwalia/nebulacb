@@ -64,7 +64,9 @@ func (o *Orchestrator) StartWithFullParams(ctx context.Context, clusterName, tar
 	}
 	if namespace != "" {
 		o.config.Namespace = namespace
-		o.k8s.SetNamespace(namespace)
+		if o.k8s != nil {
+			o.k8s.SetNamespace(namespace)
+		}
 	}
 
 	// Use a detached context so the upgrade outlives the HTTP request that started it
