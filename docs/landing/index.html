@@ -303,6 +303,7 @@
     <a href="#dashboard">Dashboard</a>
     <a href="#ai">AI</a>
     <a href="#install">Install</a>
+    <a href="#try">Try Live</a>
     <a href="#architecture">Architecture</a>
     <a href="https://github.com/bwalia/nebulacb" class="nav-cta">GitHub</a>
   </div>
@@ -594,6 +595,40 @@
       <div class="highlight-card"><div class="highlight-icon">&#x1F4CB;</div><div class="highlight-title">Runbooks</div><div class="highlight-desc">Opinionated remediation playbooks</div></div>
     </div>
   </div>
+
+  <div style="margin-top:40px;">
+    <div class="section-header" style="margin-bottom:24px;">
+      <h2 style="font-size:1.3rem;">Mission Control Panel &mdash; 16 Commands</h2>
+      <p style="font-size:0.85rem;">Every operator action is one click away. All commands hit the backend via <code>/api/v1/command</code> and stream live state back through WebSocket.</p>
+    </div>
+    <table class="config-table">
+      <tr><th style="width:18%;">Category</th><th style="width:22%;">Command</th><th>What it does</th></tr>
+      <tr><td rowspan="3"><strong>Load</strong></td>
+          <td><code>start_load</code></td><td>Start the Storm generator against configured clusters</td></tr>
+      <tr><td><code>pause_load</code></td><td>Pause writers without tearing down workers</td></tr>
+      <tr><td><code>stop_load</code></td><td>Stop generation and flush stats</td></tr>
+      <tr><td rowspan="3"><strong>Upgrade</strong></td>
+          <td><code>start_upgrade</code></td><td>Patch <code>CouchbaseCluster</code> CR and track pod-by-pod rollout</td></tr>
+      <tr><td><code>abort_upgrade</code></td><td>Stop tracking the in-flight upgrade</td></tr>
+      <tr><td><code>downgrade</code></td><td>Roll back to the previous image via Operator rolling restart</td></tr>
+      <tr><td rowspan="5"><strong>XDCR</strong></td>
+          <td><code>pause_xdcr</code></td><td>Pause replication pipeline</td></tr>
+      <tr><td><code>resume_xdcr</code></td><td>Resume after pause</td></tr>
+      <tr><td><code>stop_xdcr</code></td><td>Stop and remove the replication</td></tr>
+      <tr><td><code>restart_xdcr</code></td><td>Recreate the pipeline (useful after topology change)</td></tr>
+      <tr><td><code>xdcr_troubleshoot</code></td><td>Open diagnostics modal with delay history + live state</td></tr>
+      <tr><td><strong>Validation</strong></td>
+          <td><code>run_audit</code></td><td>Full source-vs-target comparison (hash + sequence + key diff)</td></tr>
+      <tr><td><strong>Chaos</strong></td>
+          <td><code>inject_failure</code></td><td>Inject XDCR partition or node failure for resilience testing</td></tr>
+      <tr><td><strong>AI</strong></td>
+          <td><code>ai_analyze</code></td><td>Trigger on-demand AI root cause analysis</td></tr>
+      <tr><td><strong>Backup</strong></td>
+          <td><code>start_backup</code></td><td>Start a cluster backup (modal picks cluster + options)</td></tr>
+      <tr><td><strong>HA</strong></td>
+          <td><code>manual_failover</code></td><td>Promote target, mark source failed (with confirmation modal)</td></tr>
+    </table>
+  </div>
 </section>
 
 <!-- ===== AI SECTION ===== -->
@@ -837,6 +872,108 @@ kubectl patch couchbasecluster cb-local -n couchbase --type merge \
   "kv_port": 32419,
   ...
 }</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== TRY IT LIVE ===== -->
+<section class="section" id="try">
+  <div class="section-header">
+    <div class="section-divider"></div>
+    <h2>Try It Live &mdash; Smoke Test After Install</h2>
+    <p>Every endpoint below works against the default install. Use these to verify your deployment in under 60 seconds.</p>
+  </div>
+
+  <div class="features-grid" style="grid-template-columns:repeat(2,1fr);">
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x1F4E1;</div>
+      <div class="feature-title">Health &amp; Dashboard</div>
+      <div class="feature-desc">Check the server is up, all clusters are connected, and the dashboard API returns live cluster state.</div>
+<div class="code-block" style="margin-top:12px;"><span class="code-comment"># Public health probe (no auth)</span>
+curl http://localhost:8899/api/v1/health
+
+<span class="code-comment"># Full dashboard state (auth required)</span>
+curl -u admin:nebulacb \
+  http://localhost:8899/api/v1/dashboard
+
+<span class="code-comment"># Get a session token for the UI</span>
+curl -X POST http://localhost:8899/api/v1/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"nebulacb"}'</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x1F50D;</div>
+      <div class="feature-title">Data Integrity Audit</div>
+      <div class="feature-desc">Run a full source-vs-target comparison. Exercises the gocb SDK, REST topology discovery, and the validator module end-to-end.</div>
+<div class="code-block" style="margin-top:12px;"><span class="code-comment"># Kick off a full audit</span>
+curl -u admin:nebulacb \
+  -X POST http://localhost:8899/api/v1/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"run_audit"}'
+
+<span class="code-comment"># Same thing via the CLI</span>
+bin/nebulacb-cli run-audit
+bin/nebulacb-cli status</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x1F501;</div>
+      <div class="feature-title">XDCR Diagnostics</div>
+      <div class="feature-desc">Get live pipeline state, topology-change history, GOXDCR delay windows, and every diagnostic check the troubleshoot modal runs.</div>
+<div class="code-block" style="margin-top:12px;">curl -u admin:nebulacb \
+  http://localhost:8899/api/v1/xdcr/diagnostics | jq
+
+<span class="code-comment"># Restart the pipeline</span>
+curl -u admin:nebulacb \
+  -X POST http://localhost:8899/api/v1/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"restart_xdcr"}'</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x26A1;</div>
+      <div class="feature-title">Dual-Cluster Load Test</div>
+      <div class="feature-desc">Generate random writes against both clusters to stress XDCR during an upgrade. Prints per-cluster throughput every 5 seconds.</div>
+<div class="code-block" style="margin-top:12px;"><span class="code-comment"># 100 writes/sec, 50/50 split, 5 min</span>
+go run ./cmd/xdcr-loadtest/ \
+  -rate 100 -duration 5m
+
+<span class="code-comment"># Or trigger the in-process Storm generator</span>
+curl -u admin:nebulacb \
+  -X POST http://localhost:8899/api/v1/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"start_load"}'</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x1F916;</div>
+      <div class="feature-title">AI Tabs (Ollama required)</div>
+      <div class="feature-desc">Run AI locally. The Knowledge Base tab always works, but Ask AI, RCA, and Insights require a running Ollama instance.</div>
+<div class="code-block" style="margin-top:12px;"><span class="code-comment"># One-time setup</span>
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve &amp;
+ollama pull llama3
+
+<span class="code-comment"># Trigger an AI analysis</span>
+curl -u admin:nebulacb \
+  -X POST http://localhost:8899/api/v1/command \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"ai_analyze"}'</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-box">&#x2638;&#xFE0F;</div>
+      <div class="feature-title">K8s Observability Tabs</div>
+      <div class="feature-desc">Pod Logs, Events, and Operator tabs pull from the kubeconfig set in <code>/etc/nebulacb/config.json</code>. Make sure the nebulacb system user can read that file.</div>
+<div class="code-block" style="margin-top:12px;"><span class="code-comment"># Place kubeconfig where the service can read it</span>
+sudo install -m 0640 -o root -g nebulacb \
+  ~/.kube/config /etc/nebulacb/kubeconfig.yaml
+
+<span class="code-comment"># Point config.json at it and restart</span>
+sudo sed -i 's|"kubeconfig": ".*"|"kubeconfig": "/etc/nebulacb/kubeconfig.yaml"|' \
+  /etc/nebulacb/config.json
+sudo systemctl restart nebulacb</div>
     </div>
   </div>
 </section>
