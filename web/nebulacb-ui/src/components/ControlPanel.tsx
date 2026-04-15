@@ -33,6 +33,7 @@ const buttons = [
   { label: 'Inject Failure', action: 'inject_failure', icon: '\uD83D\uDCA5', color: '#ff6600', group: 'chaos' },
   { label: 'AI Analyze', action: 'ai_analyze', icon: '\uD83E\uDDE0', color: '#ff88ff', group: 'ai' },
   { label: 'Backup', action: 'start_backup', icon: '\uD83D\uDCBE', color: '#00cc88', group: 'backup' },
+  { label: 'Restore', action: 'start_restore', icon: '\u21A9', color: '#00aaff', group: 'backup' },
   { label: 'Failover', action: 'manual_failover', icon: '\u26A0\uFE0F', color: '#ff8800', group: 'ha' },
 ];
 
@@ -66,6 +67,10 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [availableBackups, setAvailableBackups] = useState<Array<{ id: string; cluster_name: string; size: string; mode?: string; docs_exported?: number }>>([]);
+  const [selectedBackupID, setSelectedBackupID] = useState('');
+  const [restoreTarget, setRestoreTarget] = useState('');
   const [showFailoverModal, setShowFailoverModal] = useState(false);
   const [showXDCRTroubleshoot, setShowXDCRTroubleshoot] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResult | null>(null);
@@ -122,6 +127,19 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
       setShowDowngradeModal(true);
     } else if (action === 'start_backup') {
       setShowBackupModal(true);
+    } else if (action === 'start_restore') {
+      setShowRestoreModal(true);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      fetch(`${apiBase()}/api/v1/backup/list`, { headers })
+        .then(r => r.json())
+        .then((list: Array<{ id: string; cluster_name: string; size: string; mode?: string; docs_exported?: number; status?: string }>) => {
+          const completed = (list || []).filter((b) => !b.status || b.status === 'completed');
+          setAvailableBackups(completed);
+          if (completed.length > 0) setSelectedBackupID(completed[completed.length - 1].id);
+        })
+        .catch(() => setAvailableBackups([]));
     } else if (action === 'manual_failover') {
       setShowFailoverModal(true);
     } else if (action === 'xdcr_troubleshoot') {
@@ -154,6 +172,15 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
       params: { cluster_name: selectedCluster },
     });
     setShowBackupModal(false);
+  };
+
+  const handleRestoreSubmit = () => {
+    if (!selectedBackupID || !restoreTarget) return;
+    onCommand({
+      action: 'start_restore',
+      params: { backup_id: selectedBackupID, target_cluster: restoreTarget },
+    });
+    setShowRestoreModal(false);
   };
 
   const handleFailoverSubmit = () => {
@@ -325,6 +352,75 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                 onClick={handleBackupSubmit}
               >
                 Start Backup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Modal */}
+      {showRestoreModal && (
+        <div className="modal-overlay" onClick={() => setShowRestoreModal(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-icon">{'\u21A9'}</span>
+              Restore From Backup
+            </div>
+            <div className="modal-body">
+              <div className="modal-field">
+                <label className="modal-label">Backup to Restore</label>
+                {availableBackups.length === 0 ? (
+                  <div className="modal-warning">No completed backups available.</div>
+                ) : (
+                  <select
+                    className="modal-select"
+                    value={selectedBackupID}
+                    onChange={(e) => setSelectedBackupID(e.target.value)}
+                  >
+                    <option value="">-- Select backup --</option>
+                    {availableBackups.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.id} — {b.cluster_name}
+                        {b.docs_exported ? ` (${b.docs_exported.toLocaleString()} docs, ${b.size})` : b.size ? ` (${b.size})` : ''}
+                        {b.mode === 'ce-sdk' ? ' [CE]' : b.mode === 'ee-cbbackupmgr' ? ' [EE]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="modal-field">
+                <label className="modal-label">Target Cluster</label>
+                {clusterList.length === 0 ? (
+                  <div className="modal-warning">Loading clusters...</div>
+                ) : (
+                  <select
+                    className="modal-select"
+                    value={restoreTarget}
+                    onChange={(e) => setRestoreTarget(e.target.value)}
+                  >
+                    <option value="">-- Select target --</option>
+                    {clusterList.map(([name, cm]) => (
+                      <option key={name} value={name}>
+                        {name} ({cm.total_docs?.toLocaleString()} docs)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="modal-warning" style={{ marginTop: 8, fontSize: 11 }}>
+                Restore will upsert all documents from the backup into the target cluster's bucket. Existing keys with the same ID will be overwritten.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn-cancel" onClick={() => setShowRestoreModal(false)}>
+                Cancel
+              </button>
+              <button
+                className="modal-btn modal-btn-confirm"
+                disabled={!selectedBackupID || !restoreTarget}
+                onClick={handleRestoreSubmit}
+              >
+                Start Restore
               </button>
             </div>
           </div>

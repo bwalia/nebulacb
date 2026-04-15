@@ -142,7 +142,7 @@ describe('ControlPanel button inventory', () => {
       'Start Load', 'Pause Load', 'Resume Load', 'Stop Load',
       'Start Upgrade', 'Abort Upgrade', 'Downgrade',
       'Pause XDCR', 'Resume XDCR', 'Stop XDCR', 'Restart XDCR', 'XDCR Troubleshoot',
-      'Full Audit', 'Inject Failure', 'AI Analyze', 'Backup', 'Failover',
+      'Full Audit', 'Inject Failure', 'AI Analyze', 'Backup', 'Restore', 'Failover',
     ];
     expected.forEach((label) => {
       expect(screen.getByText(label)).toBeInTheDocument();

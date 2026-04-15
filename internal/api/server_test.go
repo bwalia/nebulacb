@@ -286,6 +286,7 @@ func TestCommandEndpoint_AllButtonActions(t *testing.T) {
 		{"inject_failure", `{"action":"inject_failure","params":{"type":"xdcr_partition","target":"replication"}}`},
 		{"ai_analyze", `{"action":"ai_analyze"}`},
 		{"start_backup", `{"action":"start_backup","params":{"cluster_name":"src"}}`},
+		{"start_restore", `{"action":"start_restore","params":{"backup_id":"bk","target_cluster":"src"}}`},
 		{"manual_failover", `{"action":"manual_failover","params":{"source_cluster":"src","target_cluster":"tgt"}}`},
 	}
 

@@ -704,6 +704,21 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 		}
 		return map[string]string{"status": "ok", "message": fmt.Sprintf("Backup of %s started", cluster)}
 
+	case "start_restore":
+		if s.backupMgr == nil {
+			return map[string]string{"status": "error", "message": "Backup not configured"}
+		}
+		backupID := cmd.Params["backup_id"]
+		target := cmd.Params["target_cluster"]
+		if backupID == "" || target == "" {
+			return map[string]string{"status": "error", "message": "backup_id and target_cluster required"}
+		}
+		_, err := s.backupMgr.StartRestore(ctx, backupID, target, nil)
+		if err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": fmt.Sprintf("Restore of %s to %s started", backupID, target)}
+
 	case "manual_failover":
 		if s.failoverMgr == nil {
 			return map[string]string{"status": "error", "message": "Failover not configured"}

@@ -432,6 +432,7 @@ type BackupConfig struct {
 // BackupStatus represents current backup state.
 type BackupStatus struct {
 	LastBackup     *BackupInfo   `json:"last_backup,omitempty"`
+	ActiveBackup   *BackupInfo   `json:"active_backup,omitempty"`
 	NextScheduled  time.Time     `json:"next_scheduled,omitempty"`
 	RecentBackups  []BackupInfo  `json:"recent_backups,omitempty"`
 	ActiveRestore  *RestoreInfo  `json:"active_restore,omitempty"`

@@ -386,39 +386,71 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             )}
 
             {/* Backup Status */}
-            {backupStatus && backupStatus.last_backup && (
+            {backupStatus && (backupStatus.active_backup || backupStatus.last_backup || backupStatus.active_restore) && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
-                  <span className="panel-indicator" style={{ backgroundColor: '#00cc88' }} />
+                  <span className="panel-indicator" style={{ backgroundColor: backupStatus.active_backup || backupStatus.active_restore ? '#ffaa00' : '#00cc88' }} />
                   BACKUP
                 </div>
                 <div className="panel-body" style={{ fontSize: 11 }}>
-                  <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#00ff88' : '#ff4444' }}>
-                    {backupStatus.last_backup.status}
-                  </span> ({backupStatus.last_backup.cluster_name})</div>
-                  {backupStatus.last_backup.mode && (
-                    <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffaa00' : '#00aaff' }}>
-                      {backupStatus.last_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}
-                    </span></div>
+                  {backupStatus.active_backup && (
+                    <>
+                      <div>Running: <span style={{ color: '#ffaa00' }}>{backupStatus.active_backup.cluster_name}</span></div>
+                      {backupStatus.active_backup.mode && (
+                        <div>Mode: {backupStatus.active_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
+                      )}
+                      {!!backupStatus.active_backup.docs_exported && (
+                        <div>Docs exported: {backupStatus.active_backup.docs_exported.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.active_backup.bytes_exported && (
+                        <div>Bytes: {(backupStatus.active_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
+                      )}
+                    </>
                   )}
-                  {backupStatus.last_backup.duration_seconds > 0 && (
-                    <div>Duration: {backupStatus.last_backup.duration_seconds.toFixed(1)}s</div>
+                  {backupStatus.active_restore && (
+                    <>
+                      <div>Restoring: <span style={{ color: '#ffaa00' }}>{backupStatus.active_restore.target_cluster}</span></div>
+                      {backupStatus.active_restore.mode && (
+                        <div>Mode: {backupStatus.active_restore.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
+                      )}
+                      {!!backupStatus.active_restore.docs_restored && (
+                        <div>Docs restored: {backupStatus.active_restore.docs_restored.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.active_restore.errors && (
+                        <div style={{ color: '#ff4444' }}>Errors: {backupStatus.active_restore.errors.toLocaleString()}</div>
+                      )}
+                    </>
                   )}
-                  {!!backupStatus.last_backup.docs_exported && (
-                    <div>Docs: {backupStatus.last_backup.docs_exported.toLocaleString()}</div>
-                  )}
-                  {!!backupStatus.last_backup.bytes_exported && (
-                    <div>Size: {(backupStatus.last_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
-                  )}
-                  {backupStatus.last_backup.mode === 'ce-sdk' && (
-                    <div style={{ color: '#ffaa00', fontSize: 10, marginTop: 4 }}>
-                      CE mode — data only (no indexes / cluster config)
-                    </div>
-                  )}
-                  {backupStatus.last_backup.error && (
-                    <div style={{ color: '#ff4444', fontSize: 10, marginTop: 4 }}>
-                      {backupStatus.last_backup.error}
-                    </div>
+                  {!backupStatus.active_backup && backupStatus.last_backup && (
+                    <>
+                      <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#00ff88' : '#ff4444' }}>
+                        {backupStatus.last_backup.status}
+                      </span> ({backupStatus.last_backup.cluster_name})</div>
+                      {backupStatus.last_backup.mode && (
+                        <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffaa00' : '#00aaff' }}>
+                          {backupStatus.last_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}
+                        </span></div>
+                      )}
+                      {backupStatus.last_backup.duration_seconds > 0 && (
+                        <div>Duration: {backupStatus.last_backup.duration_seconds.toFixed(1)}s</div>
+                      )}
+                      {!!backupStatus.last_backup.docs_exported && (
+                        <div>Docs: {backupStatus.last_backup.docs_exported.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.last_backup.bytes_exported && (
+                        <div>Size: {(backupStatus.last_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
+                      )}
+                      {backupStatus.last_backup.mode === 'ce-sdk' && (
+                        <div style={{ color: '#ffaa00', fontSize: 10, marginTop: 4 }}>
+                          CE mode — data only (no indexes / cluster config)
+                        </div>
+                      )}
+                      {backupStatus.last_backup.error && (
+                        <div style={{ color: '#ff4444', fontSize: 10, marginTop: 4 }}>
+                          {backupStatus.last_backup.error}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

@@ -311,6 +311,7 @@ func (m *Manager) GetStatus() models.BackupStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	status := m.status
+	status.ActiveBackup = m.activeBackup
 	status.Timestamp = time.Now()
 	return status
 }

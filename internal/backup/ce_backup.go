@@ -182,21 +182,21 @@ func (m *Manager) runSDKRestore(ctx context.Context, cfg models.ClusterConfig, r
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		docs, errs, err := importJSONL(ctx, client, path)
-		totalDocs += docs
-		totalErrs += errs
-		atomic.StoreUint64(&restore.DocsRestored, totalDocs)
-		atomic.StoreUint64(&restore.Errors, totalErrs)
+		docs, errs, err := importJSONL(ctx, client, path, &totalDocs, &totalErrs, restore)
+		_ = docs
+		_ = errs
 		if err != nil {
 			return fmt.Errorf("import %s: %w", e.Name(), err)
 		}
 	}
+	atomic.StoreUint64(&restore.DocsRestored, totalDocs)
+	atomic.StoreUint64(&restore.Errors, totalErrs)
 
 	restore.Progress = 100
 	return nil
 }
 
-func importJSONL(ctx context.Context, client *couchbase.Client, path string) (uint64, uint64, error) {
+func importJSONL(ctx context.Context, client *couchbase.Client, path string, totalDocs, totalErrs *uint64, restore *models.RestoreInfo) (uint64, uint64, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, 0, err
@@ -214,18 +214,25 @@ func importJSONL(ctx context.Context, client *couchbase.Client, path string) (ui
 			for rec := range lines {
 				if rec.Err != "" || len(rec.Value) == 0 {
 					atomic.AddUint64(&errs, 1)
+					atomic.AddUint64(totalErrs, 1)
 					continue
 				}
 				var v any
 				if err := json.Unmarshal(rec.Value, &v); err != nil {
 					atomic.AddUint64(&errs, 1)
+					atomic.AddUint64(totalErrs, 1)
 					continue
 				}
 				if err := client.Upsert(ctx, rec.Key, v); err != nil {
 					atomic.AddUint64(&errs, 1)
+					atomic.AddUint64(totalErrs, 1)
 					continue
 				}
-				atomic.AddUint64(&docs, 1)
+				d := atomic.AddUint64(&docs, 1)
+				td := atomic.AddUint64(totalDocs, 1)
+				if d%500 == 0 {
+					atomic.StoreUint64(&restore.DocsRestored, td)
+				}
 			}
 		}()
 	}

@@ -161,6 +161,7 @@ export interface FailoverEvent {
 
 export interface BackupStatus {
   last_backup?: BackupInfo;
+  active_backup?: BackupInfo;
   next_scheduled?: string;
   recent_backups?: BackupInfo[];
   active_restore?: RestoreInfo;
@@ -194,6 +195,9 @@ export interface RestoreInfo {
   buckets: string[];
   start_time: string;
   error?: string;
+  mode?: string;
+  docs_restored?: number;
+  errors?: number;
 }
 
 // ─── Data Migration ─────────────────────────────────────────────────────────
