@@ -462,16 +462,17 @@
 
       <div class="feature-card">
         <div class="feature-icon-box">&#x1F4BE;</div>
-        <div class="feature-title">Backup &amp; Restore</div>
+        <div class="feature-title">Backup &amp; Restore (EE + CE)</div>
         <div class="feature-desc">
-          Scheduled backups with retention policies, compression, and encryption. Restore to any cluster with progress tracking.
+          Works on Couchbase Enterprise <em>and</em> Community Edition. EE clusters use <code>cbbackupmgr</code>; CE clusters fall back to a parallel SDK JSONL export &mdash; no license required.
         </div>
         <ul class="feature-list">
-          <li>Cron-based backup scheduling</li>
-          <li>Compression and encryption options</li>
-          <li>Configurable retention (days)</li>
-          <li>Point-in-time restore to any cluster</li>
-          <li>Repository size and health monitoring</li>
+          <li>Auto-detect engine: cbbackupmgr &rarr; SDK JSONL</li>
+          <li>CE mode: 16-worker KV fetch pool, millions of docs</li>
+          <li>Restore modal: pick backup from list, target any cluster</li>
+          <li>Live progress: docs / bytes while running</li>
+          <li>JSONL + <code>metadata.json</code> on disk, easy to inspect</li>
+          <li>Cron-based scheduling, retention, compression (EE)</li>
         </ul>
       </div>
 
@@ -598,14 +599,15 @@
 
   <div style="margin-top:40px;">
     <div class="section-header" style="margin-bottom:24px;">
-      <h2 style="font-size:1.3rem;">Mission Control Panel &mdash; 16 Commands</h2>
+      <h2 style="font-size:1.3rem;">Mission Control Panel &mdash; 18 Commands</h2>
       <p style="font-size:0.85rem;">Every operator action is one click away. All commands hit the backend via <code>/api/v1/command</code> and stream live state back through WebSocket.</p>
     </div>
     <table class="config-table">
       <tr><th style="width:18%;">Category</th><th style="width:22%;">Command</th><th>What it does</th></tr>
-      <tr><td rowspan="3"><strong>Load</strong></td>
+      <tr><td rowspan="4"><strong>Load</strong></td>
           <td><code>start_load</code></td><td>Start the Storm generator against configured clusters</td></tr>
       <tr><td><code>pause_load</code></td><td>Pause writers without tearing down workers</td></tr>
+      <tr><td><code>resume_load</code></td><td>Resume paused writers without re-initialising</td></tr>
       <tr><td><code>stop_load</code></td><td>Stop generation and flush stats</td></tr>
       <tr><td rowspan="3"><strong>Upgrade</strong></td>
           <td><code>start_upgrade</code></td><td>Patch <code>CouchbaseCluster</code> CR and track pod-by-pod rollout</td></tr>
@@ -623,8 +625,9 @@
           <td><code>inject_failure</code></td><td>Inject XDCR partition or node failure for resilience testing</td></tr>
       <tr><td><strong>AI</strong></td>
           <td><code>ai_analyze</code></td><td>Trigger on-demand AI root cause analysis</td></tr>
-      <tr><td><strong>Backup</strong></td>
-          <td><code>start_backup</code></td><td>Start a cluster backup (modal picks cluster + options)</td></tr>
+      <tr><td rowspan="2"><strong>Backup</strong></td>
+          <td><code>start_backup</code></td><td>Start a cluster backup (EE cbbackupmgr or CE SDK JSONL fallback)</td></tr>
+      <tr><td><code>start_restore</code></td><td>Restore from a previous backup &mdash; modal lists backups and target cluster</td></tr>
       <tr><td><strong>HA</strong></td>
           <td><code>manual_failover</code></td><td>Promote target, mark source failed (with confirmation modal)</td></tr>
     </table>

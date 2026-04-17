@@ -6,6 +6,29 @@ Simulate, validate, and observe Couchbase cluster upgrades under real-world load
 
 ---
 
+## Features
+
+Operator-facing capabilities exposed through the Mission Control cockpit and `/api/v1/command`:
+
+- **Multi-cluster monitoring** — live metrics for every cluster every 2s (ops/sec, resident ratio, disk queue, cache miss, connections).
+- **Rolling upgrades** — Kubernetes Operator-aware, pod-by-pod with live progress and abort.
+- **Downgrade** — roll back to prior image via Operator rolling restart with confirmation modal.
+- **Storm load generator** — start / pause / resume / stop, SDK or REST client, configurable regions and rates.
+- **XDCR management** — pause, resume, stop, restart, and troubleshoot diagnostics modal with delay history.
+- **Data integrity audit** — source vs target hash + sequence + key-diff comparison.
+- **Chaos injection** — XDCR partition and node failure injection for resilience testing.
+- **Backup & restore (EE + CE)** — auto-detects `cbbackupmgr`; falls back to a **parallel SDK JSONL export** on Community Edition. Restore modal picks any prior backup and target cluster. Live docs/bytes progress.
+- **HA manual failover** — source/target promotion with confirmation modal.
+- **AI analysis** — on-demand RCA via Ollama (local) or Anthropic API.
+- **Kubernetes observability** — pod logs, events, Operator status, runbooks, recommendations tabs.
+- **Multi-region orchestration** — primary/secondary region topology and failover.
+- **Data migration** — parallel workers, batching, optional transform rules, post-migration validation.
+- **Systemd packaging** — `.deb` / `.rpm` installers and `deploy/install/install.sh` for bare-metal VMs.
+
+See the cockpit **Mission Control Panel** or `docs/landing/index.html` for the full 18-command reference.
+
+---
+
 ## Architecture
 
 ```
@@ -34,7 +57,7 @@ Simulate, validate, and observe Couchbase cluster upgrades under real-world load
 | Data Validator | Source vs target integrity checks (hash, sequence, key diff) |
 | Cluster Monitor | Polls all clusters every 2 seconds |
 | Failover Manager | Automatic/manual HA failover |
-| Backup Manager | Scheduled backups with retention |
+| Backup Manager | Scheduled backups with retention; EE (`cbbackupmgr`) and CE (SDK JSONL) engines |
 | Migration Engine | Cross-cluster data migration |
 | Region Manager | Multi-region orchestration |
 | AI Analyzer | Claude API integration for log analysis |
