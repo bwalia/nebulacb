@@ -1,0 +1,779 @@
+openapi: 3.0.3
+info:
+  title: NebulaCB API
+  description: |
+    NebulaCB — Couchbase Migration & Upgrade Mission Control.
+
+    The NebulaCB server exposes a REST + WebSocket API for orchestrating rolling
+    upgrades, cross-datacentre replication (XDCR), multi-region failover,
+    backup/restore, AI-driven diagnostics, and fleet management of Couchbase
+    clusters running on bare metal, Docker, or Kubernetes.
+
+    This spec is the source of truth consumed by the built-in Swagger UI and by
+    the NebulaCB MCP server (cmd/mcp), which exposes the same surface as Model
+    Context Protocol tools.
+  version: 1.0.0
+  contact:
+    name: NebulaCB
+    url: https://github.com/balinderwalia/nebulacb
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: /
+    description: Same-origin (behind reverse proxy)
+security:
+  - bearerAuth: []
+  - basicAuth: []
+tags:
+  - name: Auth
+    description: Login, logout, session check
+  - name: Core
+    description: Dashboard, commands, alerts, reports, config, health
+  - name: Clusters
+    description: Cluster registry and per-cluster detail
+  - name: Regions
+    description: Multi-region topology and promotion
+  - name: Failover
+    description: HA and failover control
+  - name: Backup
+    description: Backup and restore
+  - name: Migration
+    description: Cross-cluster data migration
+  - name: XDCR
+    description: XDCR diagnostics
+  - name: AI
+    description: AI-driven analysis and RCA
+  - name: Docker
+    description: Docker container management
+  - name: Kubernetes
+    description: Kubernetes logs, events, pods, operator
+  - name: Enterprise
+    description: Diagnostics bundle, runbooks, recommendations
+paths:
+  /api/v1/health:
+    get:
+      tags: [Core]
+      summary: Health check (public)
+      description: Returns server status, uptime, enabled features, and cluster connection counts. No authentication required.
+      security: []
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/login:
+    post:
+      tags: [Auth]
+      summary: Obtain a bearer session token
+      description: Exchange a username/password for a 24h bearer token. If auth is disabled on the server, returns an empty token and `auth=false`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+  /api/v1/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the current bearer token
+      responses:
+        "200":
+          description: Token revoked
+  /api/v1/auth/check:
+    get:
+      tags: [Auth]
+      summary: Report whether auth is enabled (public)
+      security: []
+      responses:
+        "200":
+          description: Auth status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_enabled:
+                    type: boolean
+  /api/v1/dashboard:
+    get:
+      tags: [Core]
+      summary: Full dashboard state
+      description: |
+        Returns the composite mission-control view: cluster health, XDCR,
+        upgrade progress, storm load metrics, integrity audit, alerts, regions,
+        failover, backup, migration, and AI insights.
+      responses:
+        "200":
+          description: Dashboard state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardState"
+  /api/v1/command:
+    post:
+      tags: [Core]
+      summary: Execute a mission-control action
+      description: |
+        Dispatches an action against the orchestrator. Supported actions:
+
+        - `start_load`, `pause_load`, `resume_load`, `stop_load`
+        - `start_upgrade` (params: cluster_name, target_version, namespace), `abort_upgrade`, `downgrade`
+        - `restart_xdcr`, `pause_xdcr`, `resume_xdcr`, `stop_xdcr`
+        - `run_audit`
+        - `inject_failure` (params: type, target)
+        - `ai_analyze`
+        - `start_backup` (params: cluster_name), `start_restore` (params: backup_id, target_cluster)
+        - `manual_failover` (params: source_cluster, target_cluster)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Command"
+      responses:
+        "200":
+          description: Command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+  /api/v1/alerts:
+    get:
+      tags: [Core]
+      summary: Active alerts
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+  /api/v1/reports:
+    get:
+      tags: [Core]
+      summary: List generated reports
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      tags: [Core]
+      summary: Generate a new report
+      responses:
+        "200":
+          description: Generated report
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/config:
+    get:
+      tags: [Core]
+      summary: Running configuration (secrets redacted)
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/clusters:
+    get:
+      tags: [Clusters]
+      summary: Registered clusters and connection status
+      responses:
+        "200":
+          description: Clusters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clusters:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ClusterInfo"
+                  total:
+                    type: integer
+                  connected:
+                    type: integer
+  /api/v1/cluster/buckets:
+    get:
+      tags: [Clusters]
+      summary: Buckets on a cluster
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Buckets
+  /api/v1/cluster/indexes:
+    get:
+      tags: [Clusters]
+      summary: Indexes on a cluster
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Indexes
+  /api/v1/cluster/users:
+    get:
+      tags: [Clusters]
+      summary: RBAC users on a cluster
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Users
+  /api/v1/cluster/edition:
+    get:
+      tags: [Clusters]
+      summary: Detect Enterprise vs Community edition
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Edition
+  /api/v1/cluster/topology:
+    get:
+      tags: [Clusters]
+      summary: Full topology snapshot (edition, buckets, indexes)
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Topology
+  /api/v1/cluster/logs:
+    get:
+      tags: [Clusters]
+      summary: Recent cluster-level log lines
+      parameters:
+        - $ref: "#/components/parameters/ClusterQuery"
+      responses:
+        "200":
+          description: Logs
+  /api/v1/regions:
+    get:
+      tags: [Regions]
+      summary: Region topology and replications
+      responses:
+        "200":
+          description: Regions
+  /api/v1/regions/promote:
+    post:
+      tags: [Regions]
+      summary: Promote a region to primary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [region]
+              properties:
+                region:
+                  type: string
+      responses:
+        "200":
+          description: Promoted
+  /api/v1/failover:
+    get:
+      tags: [Failover]
+      summary: Current failover status
+      responses:
+        "200":
+          description: Status
+  /api/v1/failover/manual:
+    post:
+      tags: [Failover]
+      summary: Trigger a manual failover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_cluster, target_cluster]
+              properties:
+                source_cluster:
+                  type: string
+                target_cluster:
+                  type: string
+      responses:
+        "200":
+          description: Failover event
+  /api/v1/failover/graceful:
+    post:
+      tags: [Failover]
+      summary: Graceful failover of specific nodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cluster]
+              properties:
+                cluster:
+                  type: string
+                nodes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Failover event
+  /api/v1/failover/history:
+    get:
+      tags: [Failover]
+      summary: Historical failover events
+      responses:
+        "200":
+          description: History
+  /api/v1/backup:
+    get:
+      tags: [Backup]
+      summary: Current backup manager status
+      responses:
+        "200":
+          description: Status
+  /api/v1/backup/start:
+    post:
+      tags: [Backup]
+      summary: Start a backup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cluster_name]
+              properties:
+                cluster_name:
+                  type: string
+                type:
+                  type: string
+                  enum: [full, incremental]
+                  default: full
+                buckets:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Backup info
+  /api/v1/backup/restore:
+    post:
+      tags: [Backup]
+      summary: Start a restore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [backup_id, target_cluster]
+              properties:
+                backup_id:
+                  type: string
+                target_cluster:
+                  type: string
+                buckets:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Restore info
+  /api/v1/backup/list:
+    get:
+      tags: [Backup]
+      summary: List backups in the repository
+      responses:
+        "200":
+          description: Backups
+  /api/v1/migration:
+    get:
+      tags: [Migration]
+      summary: Current migration status
+      responses:
+        "200":
+          description: Status
+  /api/v1/migration/start:
+    post:
+      tags: [Migration]
+      summary: Start a data migration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_cluster:
+                  type: string
+                target_cluster:
+                  type: string
+                buckets:
+                  type: array
+                  items:
+                    type: string
+                mode:
+                  type: string
+      responses:
+        "200":
+          description: Migration status
+  /api/v1/migration/history:
+    get:
+      tags: [Migration]
+      summary: Historical migration runs
+      responses:
+        "200":
+          description: History
+  /api/v1/xdcr/diagnostics:
+    get:
+      tags: [XDCR]
+      summary: Run XDCR diagnostics
+      responses:
+        "200":
+          description: Diagnostic results
+  /api/v1/ai/analyze:
+    post:
+      tags: [AI]
+      summary: Run AI analysis on a prompt + cluster state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                cluster:
+                  type: string
+                category:
+                  type: string
+      responses:
+        "200":
+          description: AI response
+  /api/v1/ai/auto-analyze:
+    post:
+      tags: [AI]
+      summary: Auto-analyze current state and surface insights
+      responses:
+        "200":
+          description: AI response
+  /api/v1/ai/insights:
+    get:
+      tags: [AI]
+      summary: Most recent AI insights
+      responses:
+        "200":
+          description: Insights
+  /api/v1/ai/rca:
+    get:
+      tags: [AI]
+      summary: List RCA reports
+      responses:
+        "200":
+          description: RCA reports
+    post:
+      tags: [AI]
+      summary: Run an RCA for a cluster + category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cluster:
+                  type: string
+                category:
+                  type: string
+      responses:
+        "200":
+          description: RCA report
+  /api/v1/ai/knowledge:
+    get:
+      tags: [AI]
+      summary: Built-in knowledge base of common issues
+      responses:
+        "200":
+          description: Knowledge base entries
+  /api/v1/docker/containers:
+    get:
+      tags: [Docker]
+      summary: List managed containers
+      responses:
+        "200":
+          description: Containers
+  /api/v1/docker/create:
+    post:
+      tags: [Docker]
+      summary: Create a Couchbase container
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, image]
+              properties:
+                name:
+                  type: string
+                image:
+                  type: string
+                ports:
+                  type: object
+                  additionalProperties:
+                    type: string
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Container info
+  /api/v1/docker/logs:
+    get:
+      tags: [Docker]
+      summary: Tail container logs
+      parameters:
+        - name: container
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Logs
+  /api/v1/k8s/logs:
+    get:
+      tags: [Kubernetes]
+      summary: Pod logs
+      parameters:
+        - name: pod
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          schema:
+            type: string
+        - name: tail
+          in: query
+          schema:
+            type: integer
+            default: 200
+        - name: since
+          in: query
+          description: Seconds since now
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Logs
+  /api/v1/k8s/events:
+    get:
+      tags: [Kubernetes]
+      summary: Kubernetes events
+      parameters:
+        - name: namespace
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Events
+  /api/v1/k8s/operator:
+    get:
+      tags: [Kubernetes]
+      summary: Couchbase operator status across clusters
+      responses:
+        "200":
+          description: Operator status
+  /api/v1/k8s/pods:
+    get:
+      tags: [Kubernetes]
+      summary: Pods in a namespace
+      parameters:
+        - name: namespace
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pods
+  /api/v1/diagnostics:
+    get:
+      tags: [Enterprise]
+      summary: Download a diagnostics bundle (JSON)
+      responses:
+        "200":
+          description: Diagnostics bundle
+  /api/v1/runbooks:
+    get:
+      tags: [Enterprise]
+      summary: List built-in runbooks
+      responses:
+        "200":
+          description: Runbooks
+    post:
+      tags: [Enterprise]
+      summary: Execute one step of a runbook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runbook_id, step]
+              properties:
+                runbook_id:
+                  type: string
+                step:
+                  type: integer
+      responses:
+        "200":
+          description: Step result
+  /api/v1/recommendations:
+    get:
+      tags: [Enterprise]
+      summary: Auto-generated cluster recommendations
+      responses:
+        "200":
+          description: Recommendations
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    basicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    ClusterQuery:
+      name: cluster
+      in: query
+      description: Cluster name; defaults to the `source`-role cluster when omitted.
+      schema:
+        type: string
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+        uptime:
+          type: string
+        ws_clients:
+          type: integer
+        auth:
+          type: boolean
+        tls:
+          type: boolean
+        clusters_configured:
+          type: integer
+        clusters_connected:
+          type: integer
+        features:
+          type: array
+          items:
+            type: string
+        regions:
+          type: integer
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        auth:
+          type: boolean
+        username:
+          type: string
+    Command:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          description: Action name (see `/api/v1/command` description).
+        params:
+          type: object
+          additionalProperties:
+            type: string
+    CommandResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        message:
+          type: string
+    Alert:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        category:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+    ClusterInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        host:
+          type: string
+        bucket:
+          type: string
+        role:
+          type: string
+        region:
+          type: string
+        edition:
+          type: string
+        platform:
+          type: string
+        connected:
+          type: boolean
+    DashboardState:
+      type: object
+      description: Composite dashboard state. Shape follows internal/models.DashboardState.
+      additionalProperties: true

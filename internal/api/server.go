@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/balinderwalia/nebulacb/internal/ai"
+	"github.com/balinderwalia/nebulacb/internal/api/docs"
 	"github.com/balinderwalia/nebulacb/internal/backup"
 	"github.com/balinderwalia/nebulacb/internal/config"
 	"github.com/balinderwalia/nebulacb/internal/failover"
@@ -106,6 +107,11 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
 	mux.HandleFunc("/api/v1/login", s.handleLogin)
 	mux.HandleFunc("/api/v1/auth/check", s.handleAuthCheck)
+
+	// API documentation — Swagger UI + OpenAPI spec (public)
+	mux.HandleFunc("/api/v1/openapi.yaml", docs.HandleSpec)
+	mux.HandleFunc("/api/v1/docs", docs.HandleUI)
+	mux.HandleFunc("/api/v1/docs/", docs.HandleUI)
 
 	// Protected API routes — Core
 	mux.HandleFunc("/api/v1/dashboard", s.requireAuth(s.handleDashboard))
