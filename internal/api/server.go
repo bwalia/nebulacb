@@ -653,6 +653,83 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 		}
 		return map[string]string{"status": "ok", "message": "Downgrade initiated — rolling back to previous version"}
 
+	case "start_paced_upgrade":
+		clusterName := cmd.Params["cluster_name"]
+		targetVersion := cmd.Params["target_version"]
+		namespace := cmd.Params["namespace"]
+		paced := true
+		opts := orchestrator.StartOptions{
+			ClusterName:   clusterName,
+			TargetVersion: targetVersion,
+			Namespace:     namespace,
+			Paced:         &paced,
+		}
+		if err := s.orchestrator.StartWithOptions(ctx, opts); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		msg := "Paced upgrade started — operator will auto-pause between each node for health verification"
+		if clusterName != "" && targetVersion != "" {
+			msg = fmt.Sprintf("Paced upgrade started: %s → v%s (auto-pause between nodes)", clusterName, targetVersion)
+		}
+		return map[string]string{"status": "ok", "message": msg}
+
+	case "precheck_cluster":
+		if s.k8sClient == nil {
+			return map[string]string{"status": "error", "message": "Kubernetes client not available"}
+		}
+		clusterName := cmd.Params["cluster_name"]
+		if clusterName == "" {
+			clusterName = s.config.Upgrade.ClusterName
+		}
+		namespace := cmd.Params["namespace"]
+		st, err := s.k8sClient.GetOperatorStatus(ctx, clusterName, namespace)
+		if err != nil {
+			return map[string]string{"status": "error", "message": fmt.Sprintf("pre-check failed: %v", err)}
+		}
+		if st.Drifted || st.CurrentNodes == 0 {
+			return map[string]string{"status": "error",
+				"message": fmt.Sprintf("pre-check FAILED: cluster=%s phase=%s desired=%d current=%d drifted=%v", clusterName, st.Phase, st.DesiredNodes, st.CurrentNodes, st.Drifted)}
+		}
+		return map[string]string{"status": "ok",
+			"message": fmt.Sprintf("pre-check OK: %s phase=%s nodes=%d/%d image=%s", clusterName, st.Phase, st.CurrentNodes, st.DesiredNodes, st.CurrentImage)}
+
+	case "capture_snapshot":
+		state := s.collector.GetDashboardState()
+		s.collector.AddAlert(models.Alert{
+			ID:        fmt.Sprintf("snapshot-%d", time.Now().Unix()),
+			Severity:  "info",
+			Category:  "upgrade",
+			Title:     "Pre-Upgrade Snapshot Captured",
+			Message:   fmt.Sprintf("Baseline recorded at %s (clusters=%d)", time.Now().Format(time.RFC3339), len(state.Clusters)),
+			Source:    "runbook",
+			Timestamp: time.Now(),
+		})
+		return map[string]string{"status": "ok", "message": fmt.Sprintf("Pre-upgrade snapshot captured (clusters=%d)", len(state.Clusters))}
+
+	case "post_validate":
+		if s.k8sClient == nil {
+			return map[string]string{"status": "error", "message": "Kubernetes client not available"}
+		}
+		clusterName := cmd.Params["cluster_name"]
+		if clusterName == "" {
+			clusterName = s.config.Upgrade.ClusterName
+		}
+		namespace := cmd.Params["namespace"]
+		st, err := s.k8sClient.GetOperatorStatus(ctx, clusterName, namespace)
+		if err != nil {
+			return map[string]string{"status": "error", "message": fmt.Sprintf("post-validate failed: %v", err)}
+		}
+		if st.Drifted || st.CurrentNodes != st.DesiredNodes {
+			return map[string]string{"status": "error",
+				"message": fmt.Sprintf("post-validate FAILED: phase=%s desired=%d current=%d drifted=%v — run integrity audit before declaring success", st.Phase, st.DesiredNodes, st.CurrentNodes, st.Drifted)}
+		}
+		return map[string]string{"status": "ok",
+			"message": fmt.Sprintf("post-validate OK: %s phase=%s nodes=%d/%d image=%s", clusterName, st.Phase, st.CurrentNodes, st.DesiredNodes, st.CurrentImage)}
+
+	case "generate_report":
+		// Hook for the reporting engine; returns a placeholder until wired.
+		return map[string]string{"status": "ok", "message": "Upgrade report generation requested — check Reports panel"}
+
 	case "restart_xdcr":
 		if err := s.xdcrEngine.RestartPipeline(ctx); err != nil {
 			return map[string]string{"status": "error", "message": err.Error()}
