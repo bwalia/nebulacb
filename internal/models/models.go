@@ -69,6 +69,7 @@ type UpgradeConfig struct {
 	HelmChart      string        `json:"helm_chart" yaml:"helm_chart"`
 	HelmValues     string        `json:"helm_values" yaml:"helm_values"`
 	MaxUnavailable int           `json:"max_unavailable" yaml:"max_unavailable"`
+	Paced          bool          `json:"paced" yaml:"paced"`
 }
 
 // ─── XDCR Replication ───────────────────────────────────────────────────────
@@ -177,7 +178,7 @@ type StormMetrics struct {
 
 // UpgradeStatus represents upgrade progress.
 type UpgradeStatus struct {
-	Phase           string     `json:"phase"` // pending, pre-check, upgrading, rebalancing, completed, failed, aborted
+	Phase           string     `json:"phase"` // pending, pre-check, upgrading, rebalancing, paused, completed, failed, aborted
 	CurrentNode     string     `json:"current_node"`
 	NodesCompleted  int        `json:"nodes_completed"`
 	NodesTotal      int        `json:"nodes_total"`
@@ -189,6 +190,10 @@ type UpgradeStatus struct {
 	Errors          []string   `json:"errors,omitempty"`
 	SourceVersion   string     `json:"source_version"`
 	TargetVersion   string     `json:"target_version"`
+	Paced           bool       `json:"paced"`
+	Paused          bool       `json:"paused"`
+	PausedAt        time.Time  `json:"paused_at,omitempty"`
+	PausedReason    string     `json:"paused_reason,omitempty"`
 	Timestamp       time.Time  `json:"timestamp"`
 }
 

@@ -606,14 +606,42 @@ func (s *Server) executeCommand(ctx context.Context, cmd models.Command) map[str
 		clusterName := cmd.Params["cluster_name"]
 		targetVersion := cmd.Params["target_version"]
 		namespace := cmd.Params["namespace"]
-		if err := s.orchestrator.StartWithFullParams(ctx, clusterName, targetVersion, namespace); err != nil {
+		opts := orchestrator.StartOptions{
+			ClusterName:   clusterName,
+			TargetVersion: targetVersion,
+			Namespace:     namespace,
+		}
+		if v, ok := cmd.Params["paced"]; ok {
+			paced := v == "true" || v == "1" || v == "yes"
+			opts.Paced = &paced
+		}
+		if err := s.orchestrator.StartWithOptions(ctx, opts); err != nil {
 			return map[string]string{"status": "error", "message": err.Error()}
 		}
 		msg := "Upgrade started"
 		if clusterName != "" && targetVersion != "" {
 			msg = fmt.Sprintf("Upgrading %s to v%s", clusterName, targetVersion)
 		}
+		if opts.Paced != nil && *opts.Paced {
+			msg += " (paced: auto-pause between nodes)"
+		}
 		return map[string]string{"status": "ok", "message": msg}
+
+	case "pause_upgrade":
+		reason := cmd.Params["reason"]
+		if reason == "" {
+			reason = "manual pause"
+		}
+		if err := s.orchestrator.PauseUpgrade(ctx, reason); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "Operator paused — verify cluster health before resuming"}
+
+	case "resume_upgrade":
+		if err := s.orchestrator.ResumeUpgrade(ctx); err != nil {
+			return map[string]string{"status": "error", "message": err.Error()}
+		}
+		return map[string]string{"status": "ok", "message": "Operator resumed — next swap-rebalance will start"}
 
 	case "abort_upgrade":
 		s.orchestrator.Abort()
@@ -1581,6 +1609,60 @@ var runbooks = []Runbook{
 			"Run hash-based integrity check",
 		},
 		Actions: []string{"start_backup", "run_audit"},
+	},
+	{
+		ID: "paced-upgrade-7-2-to-7-6", Name: "Paced Couchbase 7.2.2 → 7.6.x Upgrade",
+		Description: "End-to-end paced upgrade from 7.2.2 to 7.6.x, mirroring the public runbook (Pre-check → Rollout order → Step-by-step → Pause mechanism → Monitoring → XDCR → Rollback → Post-validation → Troubleshooting → Sign-off). Gates each pod's swap-rebalance via spec.paused so engineers can verify health between nodes.",
+		Category: "upgrade", Risk: "medium",
+		Steps: []string{
+			"§1 Pre-check: CouchbaseCluster CR phase=Available, all pods Ready, no active rebalance, buckets healthy",
+			"§1 Capture pre-upgrade snapshot: node count, doc counts, XDCR lag, bucket RAM/items (for post-upgrade diff)",
+			"§1 Trigger full backup of the cluster before upgrade (safety net for rollback)",
+			"§2 Confirm rollout stage order (dev → ppe → prod); this run targets the selected cluster",
+			"§6 XDCR strategy — choose: (A) Disable XDCR during upgrade [prod], (B) Keep running [dev/ppe], (C) Standby cluster",
+			"§6 (Option A) Pause XDCR replications on this cluster before upgrade begins",
+			"§3 Start paced upgrade — patch CouchbaseCluster spec.image to target version (auto-pauses between nodes)",
+			"§4+5 Between each node: verify phase=Available, rebalance=done, pod on target image — then resume for next node",
+			"§3 Wait until all nodes report the target image and CR phase=Available",
+			"§6 (Option A) Resume XDCR replications and wait for changes_left to drain",
+			"§8 Post-upgrade validation: CR phase=Available, bucket counts match pre-snapshot, run integrity audit",
+			"§8 Generate upgrade report and attach to sign-off table",
+		},
+		Actions: []string{
+			"precheck_cluster",
+			"capture_snapshot",
+			"start_backup",
+			"",
+			"",
+			"pause_xdcr",
+			"start_paced_upgrade",
+			"",
+			"",
+			"resume_xdcr",
+			"run_audit",
+			"generate_report",
+		},
+	},
+	{
+		ID: "upgrade-rollback-7-x", Name: "Couchbase Upgrade Rollback (CR Revert)",
+		Description: "Emergency rollback procedure from the public runbook §7: pause operator, patch CR back to source image, verify pods reverting, resume operator, validate Available.",
+		Category: "upgrade", Risk: "high",
+		Steps: []string{
+			"Pause the operator (set spec.paused=true on CouchbaseCluster)",
+			"Patch CouchbaseCluster spec.image back to source version",
+			"Verify pods are reverting (watch image + phase) before resuming",
+			"Resume the operator (set spec.paused=false)",
+			"Validate cluster recovered: CR phase=Available, all pods Ready on source image",
+			"Re-enable XDCR if it was disabled, notify stakeholders, file rollback record",
+		},
+		Actions: []string{
+			"pause_upgrade",
+			"downgrade",
+			"",
+			"resume_upgrade",
+			"post_validate",
+			"resume_xdcr",
+		},
 	},
 }
 
