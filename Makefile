@@ -1,9 +1,14 @@
-.PHONY: build run test clean docker helm ui package package-deb package-rpm install-local uninstall-local
+.PHONY: build run test clean docker helm ui package package-deb package-rpm install-local uninstall-local mcp
 
 # Go
 build:
 	go build -o bin/nebulacb ./cmd/nebulacb
 	go build -o bin/nebulacb-cli ./cmd/cli
+	go build -o bin/nebulacb-mcp ./cmd/mcp
+
+# Build just the MCP stdio server
+mcp:
+	go build -o bin/nebulacb-mcp ./cmd/mcp
 
 run: build
 	./bin/nebulacb --config config.json

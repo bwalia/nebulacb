@@ -623,6 +623,53 @@ make report
 
 ---
 
+## MCP Server (Model Context Protocol)
+
+`cmd/mcp` is a stdio-based MCP server that exposes the NebulaCB REST API as tools callable by MCP-aware clients (Claude Desktop, Claude Code, Cursor, etc.). It talks to a running NebulaCB server over HTTP — it is not a replacement for the server.
+
+### Build
+
+```bash
+make mcp          # builds bin/nebulacb-mcp
+```
+
+### Configure
+
+The MCP binary reads the following env vars at startup:
+
+| Variable | Purpose |
+|----------|---------|
+| `NEBULACB_URL` | Base URL of the NebulaCB server (default `http://localhost:8080`) |
+| `NEBULACB_TOKEN` | Bearer token obtained from `/api/v1/login` (preferred) |
+| `NEBULACB_USER` / `NEBULACB_PASS` | Basic auth fallback |
+
+### Wire into Claude Desktop / Claude Code
+
+Add to `~/.config/claude/claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "nebulacb": {
+      "command": "/absolute/path/to/nebulacb/bin/nebulacb-mcp",
+      "env": {
+        "NEBULACB_URL": "http://localhost:8080",
+        "NEBULACB_USER": "admin",
+        "NEBULACB_PASS": "changeme"
+      }
+    }
+  }
+}
+```
+
+Restart the client and the tools (36 of them: `nebulacb_dashboard`, `nebulacb_alerts`, `nebulacb_command`, `nebulacb_cluster_topology`, `nebulacb_backup_start`, `nebulacb_ai_rca`, …) will appear.
+
+### Safety
+
+Read-only tools (`nebulacb_health`, `nebulacb_dashboard`, `nebulacb_alerts`, `nebulacb_cluster_*`, `nebulacb_*_status`, `nebulacb_*_list`, `nebulacb_*_history`, `nebulacb_ai_insights`, `nebulacb_ai_knowledge`, `nebulacb_recommendations`, `nebulacb_k8s_*`) are safe to call freely. Tools that mutate cluster state — `nebulacb_command`, `nebulacb_backup_start`, `nebulacb_backup_restore`, `nebulacb_region_promote`, `nebulacb_runbook_step`, `nebulacb_ai_rca`, `nebulacb_report_generate` — are clearly labelled in their descriptions; instruct your MCP client to confirm before calling them.
+
+---
+
 ## XDCR Load Test Script
 
 A standalone script for sending test data to both clusters randomly during upgrades to validate XDCR replication behavior.
@@ -696,6 +743,15 @@ If `kubeconfig` is set in `config.json` and clusters have `platform: "kubernetes
 ## API Reference
 
 All endpoints require Basic Auth (unless auth is disabled).
+
+### Interactive docs (Swagger UI)
+
+With the server running, open:
+
+- `http://localhost:8080/api/v1/docs` — Swagger UI, groups all 45+ endpoints by tag (Auth, Core, Clusters, Regions, Failover, Backup, Migration, XDCR, AI, Docker, Kubernetes, Enterprise) and supports "Try it out" with a bearer token.
+- `http://localhost:8080/api/v1/openapi.yaml` — raw OpenAPI 3.0 spec (embedded at build time from `internal/api/docs/openapi.yaml`).
+
+Both endpoints are public (no auth); individual operations still require auth as documented.
 
 ### Core
 
@@ -794,7 +850,8 @@ Any `NEBULACB_CLUSTER_<NAME>_<FIELD>` variable registers a cluster dynamically.
 ## Makefile Reference
 
 ```bash
-make build            # Build Go binaries (bin/nebulacb, bin/nebulacb-cli)
+make build            # Build Go binaries (bin/nebulacb, bin/nebulacb-cli, bin/nebulacb-mcp)
+make mcp              # Build just the MCP stdio server (bin/nebulacb-mcp)
 make run              # Build and run the server
 make test             # Run Go tests
 make clean            # Remove build artifacts
