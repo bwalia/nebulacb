@@ -13,7 +13,7 @@ interface Runbook {
 }
 
 const RISK_COLORS: Record<string, string> = {
-  low: '#00ff88', medium: '#ffaa00', high: '#ff4444',
+  low: '#33e1a0', medium: '#ffb43d', high: '#ff5d6e',
 };
 
 const CAT_ICONS: Record<string, string> = {
@@ -77,11 +77,11 @@ export function RunbooksPanel() {
             >
               <div className="rca-item-header">
                 <span style={{ fontSize: '1.2rem' }}>{CAT_ICONS[rb.category] || '\uD83D\uDCCB'}</span>
-                <span className="rca-step-risk" style={{ color: RISK_COLORS[rb.risk] || '#888',
-                  background: `${RISK_COLORS[rb.risk] || '#888'}20` }}>{rb.risk} risk</span>
+                <span className="rca-step-risk" style={{ color: RISK_COLORS[rb.risk] || '#8598ab',
+                  background: `${RISK_COLORS[rb.risk] || '#8598ab'}20` }}>{rb.risk} risk</span>
               </div>
               <div style={{ fontWeight: 700, fontSize: '0.85rem', marginTop: 4 }}>{rb.name}</div>
-              <div style={{ fontSize: '0.72rem', color: '#8888aa', marginTop: 4 }}>{rb.description.substring(0, 80)}...</div>
+              <div style={{ fontSize: '0.72rem', color: '#8598ab8aa', marginTop: 4 }}>{rb.description.substring(0, 80)}...</div>
               <div style={{ fontSize: '0.65rem', color: '#6666aa', marginTop: 4 }}>{rb.steps.length} steps | {rb.category}</div>
             </div>
           ))}
@@ -98,7 +98,7 @@ export function RunbooksPanel() {
                 {selected.risk} risk
               </span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#8888aa', marginBottom: 16 }}>{selected.description}</div>
+            <div style={{ fontSize: '0.8rem', color: '#8598ab8aa', marginBottom: 16 }}>{selected.description}</div>
 
             {selected.steps.map((step, i) => (
               <div key={i} className={`runbook-step ${activeStep >= i ? 'active' : ''} ${stepResults[i] ? 'completed' : ''}`}>

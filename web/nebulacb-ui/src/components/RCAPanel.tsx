@@ -17,11 +17,11 @@ const RCA_CATEGORIES = [
 ];
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#ff4444',
+  critical: '#ff5d6e',
   high: '#ff6644',
-  medium: '#ffaa00',
-  low: '#00aaff',
-  info: '#888',
+  medium: '#ffb43d',
+  low: '#3fc8ff',
+  info: '#8598ab',
 };
 
 export function RCAPanel({ clusters }: Props) {
@@ -97,7 +97,7 @@ export function RCAPanel({ clusters }: Props) {
               onClick={() => setSelectedReport(r)}
             >
               <div className="rca-item-header">
-                <span className="rca-severity" style={{ color: SEVERITY_COLORS[r.severity] || '#888' }}>
+                <span className="rca-severity" style={{ color: SEVERITY_COLORS[r.severity] || '#8598ab' }}>
                   {r.severity?.toUpperCase()}
                 </span>
                 <span className="rca-confidence">{(r.confidence * 100).toFixed(0)}%</span>
@@ -118,7 +118,7 @@ export function RCAPanel({ clusters }: Props) {
             <div className="rca-detail-header">
               <span className="rca-severity-badge" style={{
                 color: '#fff',
-                background: SEVERITY_COLORS[selectedReport.severity] || '#888',
+                background: SEVERITY_COLORS[selectedReport.severity] || '#8598ab',
               }}>
                 {selectedReport.severity?.toUpperCase()}
               </span>

@@ -3,9 +3,9 @@ import { AIInsight } from '../types';
 import { fetchAIInsights } from '../hooks/useWebSocket';
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#ff4444',
-  warning: '#ffaa00',
-  info: '#00aaff',
+  critical: '#ff5d6e',
+  warning: '#ffb43d',
+  info: '#3fc8ff',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -68,7 +68,7 @@ export function AIInsightsPanel() {
         {filtered.map(insight => (
           <div key={insight.id} className={`insight-item ${expanded === insight.id ? 'expanded' : ''}`}>
             <div className="insight-header" onClick={() => setExpanded(expanded === insight.id ? null : insight.id)}>
-              <span className="insight-severity" style={{ color: SEVERITY_COLORS[insight.severity] || '#888' }}>
+              <span className="insight-severity" style={{ color: SEVERITY_COLORS[insight.severity] || '#8598ab' }}>
                 {insight.severity?.toUpperCase()}
               </span>
               <span className="insight-type-badge">{TYPE_LABELS[insight.type] || insight.type}</span>

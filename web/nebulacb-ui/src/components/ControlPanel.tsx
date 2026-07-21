@@ -17,24 +17,24 @@ const COUCHBASE_VERSIONS = [
 ];
 
 const buttons = [
-  { label: 'Start Load', action: 'start_load', icon: '\u25B6', color: '#00ff88', group: 'load' },
-  { label: 'Pause Load', action: 'pause_load', icon: '\u23F8', color: '#ffaa00', group: 'load' },
-  { label: 'Resume Load', action: 'resume_load', icon: '\u25B6', color: '#00ff88', group: 'load' },
-  { label: 'Stop Load', action: 'stop_load', icon: '\u23F9', color: '#ff4444', group: 'load' },
-  { label: 'Start Upgrade', action: 'start_upgrade', icon: '\uD83D\uDE80', color: '#00aaff', group: 'upgrade' },
-  { label: 'Abort Upgrade', action: 'abort_upgrade', icon: '\uD83D\uDED1', color: '#ff4444', group: 'upgrade' },
-  { label: 'Downgrade', action: 'downgrade', icon: '\u23EA', color: '#ff6600', group: 'upgrade' },
-  { label: 'Pause XDCR', action: 'pause_xdcr', icon: '\u23F8', color: '#ffaa00', group: 'replication' },
-  { label: 'Resume XDCR', action: 'resume_xdcr', icon: '\u25B6', color: '#00ff88', group: 'replication' },
-  { label: 'Stop XDCR', action: 'stop_xdcr', icon: '\u23F9', color: '#ff4444', group: 'replication' },
-  { label: 'Restart XDCR', action: 'restart_xdcr', icon: '\uD83D\uDD01', color: '#00aaff', group: 'replication' },
-  { label: 'XDCR Troubleshoot', action: 'xdcr_troubleshoot', icon: '\uD83D\uDEE0', color: '#ff88ff', group: 'replication' },
-  { label: 'Full Audit', action: 'run_audit', icon: '\uD83D\uDD0D', color: '#aa88ff', group: 'validation' },
-  { label: 'Inject Failure', action: 'inject_failure', icon: '\uD83D\uDCA5', color: '#ff6600', group: 'chaos' },
-  { label: 'AI Analyze', action: 'ai_analyze', icon: '\uD83E\uDDE0', color: '#ff88ff', group: 'ai' },
-  { label: 'Backup', action: 'start_backup', icon: '\uD83D\uDCBE', color: '#00cc88', group: 'backup' },
-  { label: 'Restore', action: 'start_restore', icon: '\u21A9', color: '#00aaff', group: 'backup' },
-  { label: 'Failover', action: 'manual_failover', icon: '\u26A0\uFE0F', color: '#ff8800', group: 'ha' },
+  { label: 'Start Load', action: 'start_load', icon: '\u25B6', color: '#33e1a0', group: 'load' },
+  { label: 'Pause Load', action: 'pause_load', icon: '\u23F8', color: '#ffb43d', group: 'load' },
+  { label: 'Resume Load', action: 'resume_load', icon: '\u25B6', color: '#33e1a0', group: 'load' },
+  { label: 'Stop Load', action: 'stop_load', icon: '\u23F9', color: '#ff5d6e', group: 'load' },
+  { label: 'Start Upgrade', action: 'start_upgrade', icon: '\uD83D\uDE80', color: '#3fc8ff', group: 'upgrade' },
+  { label: 'Abort Upgrade', action: 'abort_upgrade', icon: '\uD83D\uDED1', color: '#ff5d6e', group: 'upgrade' },
+  { label: 'Downgrade', action: 'downgrade', icon: '\u23EA', color: '#ff8a4c', group: 'upgrade' },
+  { label: 'Pause XDCR', action: 'pause_xdcr', icon: '\u23F8', color: '#ffb43d', group: 'replication' },
+  { label: 'Resume XDCR', action: 'resume_xdcr', icon: '\u25B6', color: '#33e1a0', group: 'replication' },
+  { label: 'Stop XDCR', action: 'stop_xdcr', icon: '\u23F9', color: '#ff5d6e', group: 'replication' },
+  { label: 'Restart XDCR', action: 'restart_xdcr', icon: '\uD83D\uDD01', color: '#3fc8ff', group: 'replication' },
+  { label: 'XDCR Troubleshoot', action: 'xdcr_troubleshoot', icon: '\uD83D\uDEE0', color: '#ff77d4', group: 'replication' },
+  { label: 'Full Audit', action: 'run_audit', icon: '\uD83D\uDD0D', color: '#a98bff', group: 'validation' },
+  { label: 'Inject Failure', action: 'inject_failure', icon: '\uD83D\uDCA5', color: '#ff8a4c', group: 'chaos' },
+  { label: 'AI Analyze', action: 'ai_analyze', icon: '\uD83E\uDDE0', color: '#ff77d4', group: 'ai' },
+  { label: 'Backup', action: 'start_backup', icon: '\uD83D\uDCBE', color: '#23c79b', group: 'backup' },
+  { label: 'Restore', action: 'start_restore', icon: '\u21A9', color: '#3fc8ff', group: 'backup' },
+  { label: 'Failover', action: 'manual_failover', icon: '\u26A0\uFE0F', color: '#ff9a4c', group: 'ha' },
 ];
 
 function apiBase(): string {
@@ -200,7 +200,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
     <>
       <div className="control-panel">
         <div className="panel-header">
-          <span className="panel-indicator" style={{ backgroundColor: '#aa88ff' }} />
+          <span className="panel-indicator" style={{ backgroundColor: '#a98bff' }} />
           MISSION CONTROL
         </div>
         <div className="control-buttons">
@@ -253,7 +253,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   {effectiveClusters[selectedCluster]?.edition && (
                     <span className="edition-tag" style={{
                       marginLeft: 8,
-                      color: effectiveClusters[selectedCluster]?.edition === 'enterprise' ? '#00ff88' : '#ffaa00'
+                      color: effectiveClusters[selectedCluster]?.edition === 'enterprise' ? '#33e1a0' : '#ffb43d'
                     }}>
                       {effectiveClusters[selectedCluster]?.edition?.toUpperCase()}
                     </span>
@@ -472,7 +472,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
               </button>
               <button
                 className="modal-btn modal-btn-confirm"
-                style={{ backgroundColor: '#ff4444' }}
+                style={{ backgroundColor: '#ff5d6e' }}
                 disabled={!failoverSource || !failoverTarget}
                 onClick={handleFailoverSubmit}
               >
@@ -501,7 +501,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                 The cluster will be rolled back from the upgrade target to the
                 <span className="version-tag"> source version</span> configured in NebulaCB.
               </div>
-              <div className="modal-warning" style={{ marginTop: 12, color: '#ff4444', borderColor: 'rgba(255,68,68,0.3)', background: 'rgba(255,68,68,0.08)' }}>
+              <div className="modal-warning" style={{ marginTop: 12, color: '#ff5d6e', borderColor: 'rgba(255,68,68,0.3)', background: 'rgba(255,68,68,0.08)' }}>
                 Downgrading across major versions is not always supported by Couchbase.
                 Ensure compatibility before proceeding.
               </div>
@@ -513,7 +513,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
               >Cancel</button>
               <button
                 className="modal-btn modal-btn-confirm"
-                style={{ background: '#ff6600' }}
+                style={{ background: '#ff8a4c' }}
                 onClick={() => {
                   onCommand({ action: 'downgrade' });
                   setShowDowngradeModal(false);
@@ -541,35 +541,35 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                     <div style={{
                       background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6,
-                      borderLeft: `3px solid ${xdcrStatus.state === 'Running' ? '#00ff88' : xdcrStatus.state === 'Paused' ? '#ffaa00' : '#ff4444'}`
+                      borderLeft: `3px solid ${xdcrStatus.state === 'Running' ? '#33e1a0' : xdcrStatus.state === 'Paused' ? '#ffb43d' : '#ff5d6e'}`
                     }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>State</div>
-                      <div style={{ color: xdcrStatus.state === 'Running' ? '#00ff88' : xdcrStatus.state === 'Paused' ? '#ffaa00' : '#ff4444', fontWeight: 700 }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>State</div>
+                      <div style={{ color: xdcrStatus.state === 'Running' ? '#33e1a0' : xdcrStatus.state === 'Paused' ? '#ffb43d' : '#ff5d6e', fontWeight: 700 }}>
                         {xdcrStatus.state}
                       </div>
                     </div>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #00aaff' }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Changes Left</div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #3fc8ff' }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>Changes Left</div>
                       <div style={{ color: '#fff', fontWeight: 700 }}>{(xdcrStatus.changes_left || 0).toLocaleString()}</div>
                     </div>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #aa88ff' }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Docs Processed</div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #a98bff' }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>Docs Processed</div>
                       <div style={{ color: '#fff', fontWeight: 700 }}>{(xdcrStatus.docs_processed || 0).toLocaleString()}</div>
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #00aaff' }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Replication Lag</div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #3fc8ff' }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>Replication Lag</div>
                       <div style={{ color: '#fff', fontWeight: 700 }}>{xdcrStatus.replication_lag_ms?.toFixed(1) || 0}ms</div>
                     </div>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ffaa00' }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Topology Change</div>
-                      <div style={{ color: xdcrStatus.topology_change ? '#ffaa00' : '#00ff88', fontWeight: 700 }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ffb43d' }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>Topology Change</div>
+                      <div style={{ color: xdcrStatus.topology_change ? '#ffb43d' : '#33e1a0', fontWeight: 700 }}>
                         {xdcrStatus.topology_change ? 'ACTIVE' : 'None'}
                       </div>
                     </div>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ff6600' }}>
-                      <div style={{ color: '#888', fontSize: 10, textTransform: 'uppercase' }}>Pipeline Restarts</div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid #ff8a4c' }}>
+                      <div style={{ color: '#8598ab', fontSize: 10, textTransform: 'uppercase' }}>Pipeline Restarts</div>
                       <div style={{ color: '#fff', fontWeight: 700 }}>{xdcrStatus.pipeline_restarts || 0}</div>
                     </div>
                   </div>
@@ -582,7 +582,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   <div className="modal-label" style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>DIAGNOSTIC CHECKS</div>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#00aaff', padding: '4px 12px', fontSize: 11, minWidth: 'auto' } as React.CSSProperties}
+                    style={{ '--btn-color': '#3fc8ff', padding: '4px 12px', fontSize: 11, minWidth: 'auto' } as React.CSSProperties}
                     onClick={fetchDiagnostics}
                     disabled={diagLoading}
                   >
@@ -591,7 +591,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                 </div>
 
                 {diagLoading && !diagnostics && (
-                  <div style={{ color: '#888', textAlign: 'center', padding: 20 }}>Running diagnostics...</div>
+                  <div style={{ color: '#8598ab', textAlign: 'center', padding: 20 }}>Running diagnostics...</div>
                 )}
 
                 {diagnostics && (
@@ -599,13 +599,13 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                     <div style={{
                       background: diagnostics.overall_status === 'healthy' ? 'rgba(0,255,136,0.1)' :
                                   diagnostics.overall_status === 'warning' ? 'rgba(255,170,0,0.1)' : 'rgba(255,68,68,0.1)',
-                      border: `1px solid ${diagnostics.overall_status === 'healthy' ? '#00ff88' :
-                               diagnostics.overall_status === 'warning' ? '#ffaa00' : '#ff4444'}`,
+                      border: `1px solid ${diagnostics.overall_status === 'healthy' ? '#33e1a0' :
+                               diagnostics.overall_status === 'warning' ? '#ffb43d' : '#ff5d6e'}`,
                       borderRadius: 6, padding: '8px 12px', marginBottom: 10, textAlign: 'center'
                     }}>
                       <span style={{
-                        color: diagnostics.overall_status === 'healthy' ? '#00ff88' :
-                               diagnostics.overall_status === 'warning' ? '#ffaa00' : '#ff4444',
+                        color: diagnostics.overall_status === 'healthy' ? '#33e1a0' :
+                               diagnostics.overall_status === 'warning' ? '#ffb43d' : '#ff5d6e',
                         fontWeight: 700, textTransform: 'uppercase'
                       }}>
                         {diagnostics.overall_status === 'healthy' ? '\u2713 ALL CHECKS PASSED' :
@@ -616,18 +616,18 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                     {diagnostics.checks.map((check, i) => (
                       <div key={i} style={{
                         background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: '8px 12px', marginBottom: 6,
-                        borderLeft: `3px solid ${check.status === 'ok' ? '#00ff88' : check.status === 'warning' ? '#ffaa00' : '#ff4444'}`
+                        borderLeft: `3px solid ${check.status === 'ok' ? '#33e1a0' : check.status === 'warning' ? '#ffb43d' : '#ff5d6e'}`
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>{check.title}</span>
+                          <span style={{ color: '#c3d0dc', fontWeight: 600, fontSize: 12 }}>{check.title}</span>
                           <span style={{
-                            color: check.status === 'ok' ? '#00ff88' : check.status === 'warning' ? '#ffaa00' : '#ff4444',
+                            color: check.status === 'ok' ? '#33e1a0' : check.status === 'warning' ? '#ffb43d' : '#ff5d6e',
                             fontSize: 11, fontWeight: 700, textTransform: 'uppercase'
                           }}>
                             {check.status === 'ok' ? '\u2713 OK' : check.status === 'warning' ? '\u26A0 WARN' : '\u2717 CRIT'}
                           </span>
                         </div>
-                        <div style={{ color: '#999', fontSize: 11, marginTop: 4 }}>{check.detail}</div>
+                        <div style={{ color: '#8598ab', fontSize: 11, marginTop: 4 }}>{check.detail}</div>
                       </div>
                     ))}
                   </>
@@ -641,15 +641,15 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   {diagnostics.delay_windows.map((dw, i) => (
                     <div key={i} style={{
                       background: 'rgba(255,170,0,0.1)', borderRadius: 6, padding: '6px 12px', marginBottom: 4,
-                      borderLeft: '3px solid #ffaa00', fontSize: 11
+                      borderLeft: '3px solid #ffb43d', fontSize: 11
                     }}>
-                      <span style={{ color: '#ffaa00' }}>{dw.cause}</span>
-                      <span style={{ color: '#888', marginLeft: 8 }}>
+                      <span style={{ color: '#ffb43d' }}>{dw.cause}</span>
+                      <span style={{ color: '#8598ab', marginLeft: 8 }}>
                         {new Date(dw.start).toLocaleTimeString()}
                         {dw.end ? ` — ${new Date(dw.end).toLocaleTimeString()}` : ' — ongoing'}
                       </span>
                       {dw.duration > 0 && (
-                        <span style={{ color: '#ccc', marginLeft: 8 }}>
+                        <span style={{ color: '#c3d0dc', marginLeft: 8 }}>
                           ({(dw.duration / 1e9).toFixed(0)}s)
                         </span>
                       )}
@@ -664,7 +664,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#ffaa00' } as React.CSSProperties}
+                    style={{ '--btn-color': '#ffb43d' } as React.CSSProperties}
                     onClick={() => { onCommand({ action: 'pause_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
                   >
                     <span className="btn-icon">{'\u23F8'}</span>
@@ -672,7 +672,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   </button>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#00ff88' } as React.CSSProperties}
+                    style={{ '--btn-color': '#33e1a0' } as React.CSSProperties}
                     onClick={() => { onCommand({ action: 'resume_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
                   >
                     <span className="btn-icon">{'\u25B6'}</span>
@@ -680,7 +680,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   </button>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#00aaff' } as React.CSSProperties}
+                    style={{ '--btn-color': '#3fc8ff' } as React.CSSProperties}
                     onClick={() => { onCommand({ action: 'restart_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
                   >
                     <span className="btn-icon">{'\uD83D\uDD01'}</span>
@@ -688,7 +688,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   </button>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#ff4444' } as React.CSSProperties}
+                    style={{ '--btn-color': '#ff5d6e' } as React.CSSProperties}
                     onClick={() => { onCommand({ action: 'stop_xdcr' }); setTimeout(fetchDiagnostics, 1000); }}
                   >
                     <span className="btn-icon">{'\u23F9'}</span>
@@ -696,7 +696,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   </button>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#aa88ff' } as React.CSSProperties}
+                    style={{ '--btn-color': '#a98bff' } as React.CSSProperties}
                     onClick={() => onCommand({ action: 'run_audit' })}
                   >
                     <span className="btn-icon">{'\uD83D\uDD0D'}</span>
@@ -704,7 +704,7 @@ export const ControlPanel: React.FC<Props> = ({ onCommand, clusters, xdcrStatus 
                   </button>
                   <button
                     className="control-btn"
-                    style={{ '--btn-color': '#ff6600' } as React.CSSProperties}
+                    style={{ '--btn-color': '#ff8a4c' } as React.CSSProperties}
                     onClick={() => onCommand({ action: 'inject_failure', params: { type: 'xdcr_partition', target: 'replication' } })}
                   >
                     <span className="btn-icon">{'\uD83D\uDCA5'}</span>

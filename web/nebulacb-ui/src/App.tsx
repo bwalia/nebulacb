@@ -173,13 +173,13 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             <span className="cluster-count-badge">{clusterCount} CLUSTERS</span>
           )}
           {regions.length > 0 && (
-            <span className="cluster-count-badge" style={{ background: '#1a4a1a', color: '#00ff88' }}>
+            <span className="cluster-count-badge" style={{ background: '#123726', color: '#33e1a0' }}>
               {regions.length} REGIONS
             </span>
           )}
           {upgrading && <span className="upgrade-badge-header">UPGRADE IN PROGRESS</span>}
           {migrationStatus && migrationStatus.status === 'running' && (
-            <span className="upgrade-badge-header" style={{ background: '#1a2a4a' }}>
+            <span className="upgrade-badge-header" style={{ background: '#122236' }}>
               MIGRATING {migrationStatus.progress.toFixed(0)}%
             </span>
           )}
@@ -253,7 +253,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         {regions.length > 0 && (
           <section className="region-bar">
             <div className="panel-header">
-              <span className="panel-indicator" style={{ backgroundColor: '#00cc88' }} />
+              <span className="panel-indicator" style={{ backgroundColor: '#23c79b' }} />
               REGIONS
             </div>
             <div className="region-cards">
@@ -316,15 +316,15 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
                   <span className="panel-indicator" style={{
-                    backgroundColor: upgrade.phase === 'completed' ? '#00ff88' :
-                      upgrade.phase === 'failed' ? '#ff4444' : '#00aaff'
+                    backgroundColor: upgrade.phase === 'completed' ? '#33e1a0' :
+                      upgrade.phase === 'failed' ? '#ff5d6e' : '#3fc8ff'
                   }} />
                   UPGRADE: {upgrade.source_version} &rarr; {upgrade.target_version}
                 </div>
                 <div className="panel-body">
                   <div className="upgrade-phase" style={{
-                    color: upgrade.phase === 'completed' ? '#00ff88' :
-                      upgrade.phase === 'failed' ? '#ff4444' : '#00aaff'
+                    color: upgrade.phase === 'completed' ? '#33e1a0' :
+                      upgrade.phase === 'failed' ? '#ff5d6e' : '#3fc8ff'
                   }}>
                     {upgrade.phase.toUpperCase()}
                   </div>
@@ -343,11 +343,11 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             {migrationStatus && migrationStatus.status === 'running' && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
-                  <span className="panel-indicator" style={{ backgroundColor: '#00aaff' }} />
+                  <span className="panel-indicator" style={{ backgroundColor: '#3fc8ff' }} />
                   MIGRATION: {migrationStatus.source_cluster} &rarr; {migrationStatus.target_cluster}
                 </div>
                 <div className="panel-body">
-                  <div className="upgrade-phase" style={{ color: '#00aaff' }}>
+                  <div className="upgrade-phase" style={{ color: '#3fc8ff' }}>
                     {migrationStatus.status.toUpperCase()} ({migrationStatus.progress.toFixed(1)}%)
                   </div>
                   <div className="progress-bar">
@@ -357,7 +357,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                     {migrationStatus.migrated_docs?.toLocaleString()}/{migrationStatus.total_docs?.toLocaleString()} docs
                     | {migrationStatus.docs_per_sec?.toFixed(0)} docs/s
                     {migrationStatus.failed_docs > 0 && (
-                      <span style={{ color: '#ff4444' }}> | {migrationStatus.failed_docs} failed</span>
+                      <span style={{ color: '#ff5d6e' }}> | {migrationStatus.failed_docs} failed</span>
                     )}
                   </div>
                 </div>
@@ -368,16 +368,16 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             {failoverStatus && failoverStatus.auto_failover_enabled && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
-                  <span className="panel-indicator" style={{ backgroundColor: '#ff8800' }} />
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff9a4c' }} />
                   HA / FAILOVER
                 </div>
                 <div className="panel-body" style={{ fontSize: 11 }}>
-                  <div>Mode: <span style={{ color: '#00aaff' }}>{failoverStatus.mode}</span></div>
+                  <div>Mode: <span style={{ color: '#3fc8ff' }}>{failoverStatus.mode}</span></div>
                   {failoverStatus.primary_cluster && (
-                    <div>Primary: <span style={{ color: '#00ff88' }}>{failoverStatus.primary_cluster}</span></div>
+                    <div>Primary: <span style={{ color: '#33e1a0' }}>{failoverStatus.primary_cluster}</span></div>
                   )}
                   {failoverStatus.cluster_states && Object.entries(failoverStatus.cluster_states).map(([name, st]) => (
-                    <div key={name} style={{ color: st === 'active' ? '#00ff88' : st === 'failed' ? '#ff4444' : '#aaa' }}>
+                    <div key={name} style={{ color: st === 'active' ? '#33e1a0' : st === 'failed' ? '#ff5d6e' : '#aaa' }}>
                       {name}: {st}
                     </div>
                   ))}
@@ -389,13 +389,13 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             {backupStatus && (backupStatus.active_backup || backupStatus.last_backup || backupStatus.active_restore) && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
-                  <span className="panel-indicator" style={{ backgroundColor: backupStatus.active_backup || backupStatus.active_restore ? '#ffaa00' : '#00cc88' }} />
+                  <span className="panel-indicator" style={{ backgroundColor: backupStatus.active_backup || backupStatus.active_restore ? '#ffb43d' : '#23c79b' }} />
                   BACKUP
                 </div>
                 <div className="panel-body" style={{ fontSize: 11 }}>
                   {backupStatus.active_backup && (
                     <>
-                      <div>Running: <span style={{ color: '#ffaa00' }}>{backupStatus.active_backup.cluster_name}</span></div>
+                      <div>Running: <span style={{ color: '#ffb43d' }}>{backupStatus.active_backup.cluster_name}</span></div>
                       {backupStatus.active_backup.mode && (
                         <div>Mode: {backupStatus.active_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
                       )}
@@ -409,7 +409,7 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                   )}
                   {backupStatus.active_restore && (
                     <>
-                      <div>Restoring: <span style={{ color: '#ffaa00' }}>{backupStatus.active_restore.target_cluster}</span></div>
+                      <div>Restoring: <span style={{ color: '#ffb43d' }}>{backupStatus.active_restore.target_cluster}</span></div>
                       {backupStatus.active_restore.mode && (
                         <div>Mode: {backupStatus.active_restore.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
                       )}
@@ -417,17 +417,17 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                         <div>Docs restored: {backupStatus.active_restore.docs_restored.toLocaleString()}</div>
                       )}
                       {!!backupStatus.active_restore.errors && (
-                        <div style={{ color: '#ff4444' }}>Errors: {backupStatus.active_restore.errors.toLocaleString()}</div>
+                        <div style={{ color: '#ff5d6e' }}>Errors: {backupStatus.active_restore.errors.toLocaleString()}</div>
                       )}
                     </>
                   )}
                   {!backupStatus.active_backup && backupStatus.last_backup && (
                     <>
-                      <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#00ff88' : '#ff4444' }}>
+                      <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#33e1a0' : '#ff5d6e' }}>
                         {backupStatus.last_backup.status}
                       </span> ({backupStatus.last_backup.cluster_name})</div>
                       {backupStatus.last_backup.mode && (
-                        <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffaa00' : '#00aaff' }}>
+                        <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffb43d' : '#3fc8ff' }}>
                           {backupStatus.last_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}
                         </span></div>
                       )}
@@ -441,12 +441,12 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                         <div>Size: {(backupStatus.last_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
                       )}
                       {backupStatus.last_backup.mode === 'ce-sdk' && (
-                        <div style={{ color: '#ffaa00', fontSize: 10, marginTop: 4 }}>
+                        <div style={{ color: '#ffb43d', fontSize: 10, marginTop: 4 }}>
                           CE mode — data only (no indexes / cluster config)
                         </div>
                       )}
                       {backupStatus.last_backup.error && (
-                        <div style={{ color: '#ff4444', fontSize: 10, marginTop: 4 }}>
+                        <div style={{ color: '#ff5d6e', fontSize: 10, marginTop: 4 }}>
                           {backupStatus.last_backup.error}
                         </div>
                       )}
@@ -460,21 +460,21 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
             {aiInsights.length > 0 && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
-                  <span className="panel-indicator" style={{ backgroundColor: '#ff88ff' }} />
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff77d4' }} />
                   AI INSIGHTS ({aiInsights.length})
                 </div>
                 <div className="panel-body" style={{ fontSize: 11, maxHeight: 120, overflowY: 'auto' }}>
                   {aiInsights.slice(-3).reverse().map((insight: AIInsight) => (
                     <div key={insight.id} style={{
                       padding: '4px 0',
-                      borderBottom: '1px solid #333',
-                      color: insight.severity === 'critical' ? '#ff4444' :
-                        insight.severity === 'warning' ? '#ffaa00' : '#aaa'
+                      borderBottom: '1px solid #1c2a37',
+                      color: insight.severity === 'critical' ? '#ff5d6e' :
+                        insight.severity === 'warning' ? '#ffb43d' : '#aaa'
                     }}>
                       <div style={{ fontWeight: 'bold' }}>{insight.title}</div>
                       <div>{insight.summary?.substring(0, 100)}...</div>
                       {insight.suggestions && insight.suggestions.length > 0 && (
-                        <div style={{ color: '#00aaff', fontSize: 10 }}>
+                        <div style={{ color: '#3fc8ff', fontSize: 10 }}>
                           Suggestion: {insight.suggestions[0]}
                         </div>
                       )}

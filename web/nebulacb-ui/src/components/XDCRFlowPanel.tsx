@@ -8,10 +8,10 @@ interface Props {
 }
 
 const stateColor: Record<string, string> = {
-  Running: '#00ff88',
-  Paused: '#ffaa00',
-  Restarting: '#00aaff',
-  Unknown: '#888',
+  Running: '#33e1a0',
+  Paused: '#ffb43d',
+  Restarting: '#3fc8ff',
+  Unknown: '#8598ab',
 };
 
 export const XDCRFlowPanel: React.FC<Props> = ({ xdcr, sourceDocs, targetDocs }) => {
@@ -33,7 +33,7 @@ export const XDCRFlowPanel: React.FC<Props> = ({ xdcr, sourceDocs, targetDocs })
     return () => clearInterval(interval);
   }, [xdcr.goxdcr_delay_start, xdcr.goxdcr_delay_end]);
 
-  const color = stateColor[xdcr.state] || '#888';
+  const color = stateColor[xdcr.state] || '#8598ab';
   const isActive = xdcr.state === 'Running';
 
   return (
@@ -64,7 +64,7 @@ export const XDCRFlowPanel: React.FC<Props> = ({ xdcr, sourceDocs, targetDocs })
           </div>
           {xdcr.changes_left > 0 && (
             <div className="flow-pipe-queue" style={{
-              color: xdcr.changes_left > 10000 ? '#ff4444' : xdcr.changes_left > 1000 ? '#ffaa00' : '#00ff88'
+              color: xdcr.changes_left > 10000 ? '#ff5d6e' : xdcr.changes_left > 1000 ? '#ffb43d' : '#33e1a0'
             }}>
               {xdcr.changes_left.toLocaleString()} pending
             </div>
@@ -89,7 +89,7 @@ export const XDCRFlowPanel: React.FC<Props> = ({ xdcr, sourceDocs, targetDocs })
           <div className="xdcr-metric-label">Pipeline Restarts</div>
         </div>
         <div className="xdcr-metric">
-          <div className="xdcr-metric-value" style={{ color: xdcr.topology_change ? '#ffaa00' : '#00ff88' }}>
+          <div className="xdcr-metric-value" style={{ color: xdcr.topology_change ? '#ffb43d' : '#33e1a0' }}>
             {xdcr.topology_change ? 'YES' : 'NO'}
           </div>
           <div className="xdcr-metric-label">Topology Change</div>

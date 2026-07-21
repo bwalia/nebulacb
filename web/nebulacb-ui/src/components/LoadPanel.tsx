@@ -37,7 +37,7 @@ export const LoadPanel: React.FC<Props> = ({ metrics, history }) => {
           <div className="metric-card">
             <div className="metric-card-label">P99 Latency</div>
             <div className="metric-card-value" style={{
-              color: (metrics.latency_p99_ms || 0) > 100 ? '#ff4444' : '#ffaa00'
+              color: (metrics.latency_p99_ms || 0) > 100 ? '#ff5d6e' : '#ffb43d'
             }}>
               {metrics.latency_p99_ms?.toFixed(1) || 0}ms
             </div>
@@ -49,21 +49,21 @@ export const LoadPanel: React.FC<Props> = ({ metrics, history }) => {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="writeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00ff88" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#00ff88" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#33e1a0" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#33e1a0" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="readGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00aaff" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#00aaff" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#3fc8ff" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3fc8ff" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="t" hide />
               <YAxis hide />
               <Tooltip
-                contentStyle={{ background: '#1a1a2e', border: '1px solid #333', color: '#fff' }}
+                contentStyle={{ background: '#0c131b', border: '1px solid #1c2a37', color: '#fff' }}
               />
-              <Area type="monotone" dataKey="writes" stroke="#00ff88" fill="url(#writeGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="reads" stroke="#00aaff" fill="url(#readGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="writes" stroke="#33e1a0" fill="url(#writeGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="reads" stroke="#3fc8ff" fill="url(#readGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -79,7 +79,7 @@ export const LoadPanel: React.FC<Props> = ({ metrics, history }) => {
         <div className="metric-row">
           <span className="metric-label">Errors</span>
           <span className="metric-value" style={{
-            color: (metrics.total_errors || 0) > 0 ? '#ff4444' : '#00ff88'
+            color: (metrics.total_errors || 0) > 0 ? '#ff5d6e' : '#33e1a0'
           }}>
             {(metrics.total_errors || 0).toLocaleString()}
           </span>

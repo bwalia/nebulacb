@@ -122,7 +122,7 @@ export const LogsPanel: React.FC<Props> = ({ alerts, xdcr, upgrade, clusters }) 
   return (
     <div className="cockpit-logs-panel">
       <div className="panel-header">
-        <span className="panel-indicator" style={{ backgroundColor: '#00cccc' }} />
+        <span className="panel-indicator" style={{ backgroundColor: '#2cd4c8' }} />
         LIVE LOGS
         <span className="cockpit-logs-count">{filtered.length}</span>
         <span className="cockpit-timeline-spacer" />
