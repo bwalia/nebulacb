@@ -1,0 +1,76 @@
+name: ->Cloudflare DNS (manual record)
+
+# Ad-hoc DNS record management for any zone the token can edit
+# (fictionally.org, ...). The zone is derived from RECORD_NAME's registrable apex.
+#
+# The environment host is handled automatically by the `dns` job in
+# deploy-k3s.yml, which reads the hostname out of the k3s1 Helm values overlay.
+# Use this workflow for one-offs: a preview host, a redirect, an ACME TXT, etc.
+#
+# The underlying script (deploy/scripts/cloudflare-dns.sh) is an idempotent
+# upsert, so re-running with the same values is a no-op, never a duplicate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      RECORD_NAME:
+        description: "Full record name, e.g. preview.fictionally.org (apex: fictionally.org)"
+        required: true
+        type: string
+      RECORD_CONTENT:
+        description: "Record value, e.g. pop0.wslproxy.com"
+        required: true
+        default: "pop0.wslproxy.com"
+        type: string
+      RECORD_TYPE:
+        description: "Record type"
+        required: true
+        default: "CNAME"
+        type: choice
+        options:
+          - CNAME
+          - A
+          - AAAA
+          - TXT
+      PROXIED:
+        description: "Proxy through Cloudflare (orange cloud). Leave false so the wslproxy edge can solve ACME HTTP-01."
+        required: false
+        default: false
+        type: boolean
+      DRY_RUN:
+        description: "Show what would change without writing"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upsert DNS record
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Optional zone id (skips the lookup and the Zone:Read scope). For any
+          # zone it does not match, the script resolves the id from the zone
+          # NAME, so the token needs Zone:Read on that zone.
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          # The zone is the registrable apex (last two labels) of the record
+          # name, so a record on any domain works without hardcoding a zone.
+          ZONE="$(echo "${{ inputs.RECORD_NAME }}" | awk -F. '{print $(NF-1)"."$NF}')"
+          export CLOUDFLARE_ZONE="$ZONE"
+          echo "Upserting ${{ inputs.RECORD_NAME }} (zone ${ZONE})"
+          ARGS=(
+            --name "${{ inputs.RECORD_NAME }}"
+            --content "${{ inputs.RECORD_CONTENT }}"
+            --type "${{ inputs.RECORD_TYPE }}"
+            --proxied "${{ inputs.PROXIED }}"
+          )
+          if [ "${{ inputs.DRY_RUN }}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          ./deploy/scripts/cloudflare-dns.sh "${ARGS[@]}"
