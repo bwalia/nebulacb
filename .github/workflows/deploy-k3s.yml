@@ -1,0 +1,165 @@
+name: ->NebulaCB Build/Push Docker Image and Deploy to K3S
+
+# Build the NebulaCB image to Docker Hub and deploy the Helm chart to the
+# nebulacb namespace on k3s1, with DNS + wslproxy vhost automated the same way
+# as beaconpulse's deploy-k3s.yml (the model for this workflow).
+on:
+  # Continuous deployment: every push to main builds the image and deploys.
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      DEPLOYMENT_TYPE:
+        type: choice
+        description: "Build only, deploy only, or both"
+        default: "build-and-deploy"
+        required: true
+        options:
+          - build
+          - deploy
+          - build-and-deploy
+      IMAGE_TAG:
+        type: string
+        description: "Image tag to DEPLOY (deploy-only). Leave blank to use this commit's short SHA."
+        default: ""
+        required: false
+
+env:
+  # Public Docker Hub repo — the same one the existing k3s1 deployment pulls.
+  IMAGE_REPO: bwalia/nebulacb
+  # The architecture the CLUSTER runs. Every k3s1 node is amd64 and ubuntu-latest
+  # is amd64, so this is a NATIVE build. Getting it wrong is silent until the
+  # kubelet dies with "exec format error" (see beaconpulse's workflow notes).
+  BUILD_PLATFORM: linux/amd64
+  # Suppress BuildKit attestation manifests so a single manifest is pushed.
+  BUILDX_FLAGS: --provenance=false --sbom=false
+  DEPLOYMENT_TYPE: ${{ github.event.inputs.DEPLOYMENT_TYPE || 'build-and-deploy' }}
+  # DNS: the host is a CNAME to the wslproxy edge. The hostname is read from the
+  # Helm values overlay so DNS can never drift from what the Ingress serves.
+  #   browser -> pop0.wslproxy.com (edge; terminates TLS)
+  #   -> 193.237.176.232:8888 (k3s1 traefik) -> nebulacb service
+  DNS_TARGET: pop0.wslproxy.com
+  DNS_PROXIED: "false" # DNS-only so the edge's certbot can solve HTTP-01
+  VALUES_FILE: deploy/helm/nebulacb/values-k3s1.yaml
+
+jobs:
+  # Runs before `deploy` so the record exists before traffic (and the edge's
+  # ACME challenge) arrives. Cloudflare only needs egress -> hosted runner.
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure the CNAME for this host
+        if: ${{ env.DEPLOYMENT_TYPE == 'deploy' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Optional: fictionally.org's zone id. When unset the script resolves
+          # the id from the zone NAME, which needs Zone:Read on the token.
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          # Single source of truth: whatever host the chart's Ingress claims.
+          HOST="$(awk '/^host:/{print $2; exit}' "$VALUES_FILE")"
+          [ -n "$HOST" ] || { echo "::error::no 'host:' in $VALUES_FILE"; exit 1; }
+
+          # The Cloudflare zone is the registrable apex (last two labels) of the
+          # host, so a move to another domain needs no workflow change.
+          ZONE="$(echo "$HOST" | awk -F. '{print $(NF-1)"."$NF}')"
+          export CLOUDFLARE_ZONE="$ZONE"
+
+          echo "Ensuring ${HOST} (zone ${ZONE}) -> ${DNS_TARGET} (proxied=${DNS_PROXIED})"
+          ./deploy/scripts/cloudflare-dns.sh \
+            --name "$HOST" \
+            --content "$DNS_TARGET" \
+            --proxied "$DNS_PROXIED"
+
+  # DNS resolves to the edge, so the edge must hold the vhost + rule before
+  # traffic arrives. Reuses the register workflow rather than duplicating it.
+  wslproxy:
+    name: Register WSL Proxy vhost
+    needs: [dns]
+    if: ${{ (github.event.inputs.DEPLOYMENT_TYPE || 'build-and-deploy') != 'build' }}
+    uses: ./.github/workflows/wslproxy-register-domains.yml
+    with:
+      TARGET_ENV: prod
+      ACTIVATE_CONFIG: true
+      DRY_RUN: false
+    secrets: inherit
+
+  build:
+    # GitHub-hosted and deliberately NOT self-hosted: the self-hosted runner is
+    # an arm64 Mac, so building there would either produce arm64 images (pods
+    # die with "exec format error") or crawl under QEMU emulation.
+    # ubuntu-latest is amd64 -> native build. Docker Hub is public, so the
+    # hosted runner can push; only cluster-touching jobs need self-hosted.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tag (short SHA)
+        id: tag
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Docker Hub login
+        if: ${{ env.DEPLOYMENT_TYPE == 'build' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        run: |
+          docker login \
+            -u "${{ secrets.DOCKER_USERNAME }}" \
+            -p "${{ secrets.DOCKER_PASSWD }}"
+
+      - name: Build & push image
+        if: ${{ env.DEPLOYMENT_TYPE == 'build' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        run: |
+          set -euo pipefail
+          SHA=${{ steps.tag.outputs.sha }}
+          docker buildx build --platform "$BUILD_PLATFORM" $BUILDX_FLAGS --load \
+            -t "$IMAGE_REPO:$SHA" -t "$IMAGE_REPO:latest" .
+          docker push "$IMAGE_REPO:$SHA"
+          docker push "$IMAGE_REPO:latest"
+
+  deploy:
+    # Self-hosted: the k3s1 API does not answer from outside the operator
+    # network, so a hosted runner cannot helm-deploy. Requires a self-hosted
+    # runner registered on THIS repo.
+    runs-on: self-hosted
+    needs: [build, dns, wslproxy]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decode kubeconfig
+        if: ${{ env.DEPLOYMENT_TYPE == 'deploy' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        env:
+          # Base64 kubeconfig for the k3s1 cluster.
+          KUBECONFIG_BASE64: ${{ secrets.KUBE_CONFIG_DATA_K3S }}
+        run: |
+          echo "$KUBECONFIG_BASE64" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Deploy NebulaCB Helm chart
+        if: ${{ env.DEPLOYMENT_TYPE == 'deploy' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.IMAGE_TAG }}"
+          [ -z "$TAG" ] && TAG="${GITHUB_SHA::7}"
+
+          # --reuse-values: the live release carries couchbase endpoints and
+          # credentials that are intentionally not in git. The k3s1 overlay and
+          # the new tag layer on top of them.
+          helm upgrade --install nebulacb ./deploy/helm/nebulacb \
+            --reuse-values \
+            -f "$VALUES_FILE" \
+            --set image.tag="$TAG" \
+            --namespace nebulacb --create-namespace \
+            --wait --timeout 10m
+
+      - name: Rollout status
+        if: ${{ env.DEPLOYMENT_TYPE == 'deploy' || env.DEPLOYMENT_TYPE == 'build-and-deploy' }}
+        run: |
+          kubectl -n nebulacb rollout status deploy/nebulacb --timeout=5m
+          kubectl -n nebulacb get pods -o wide

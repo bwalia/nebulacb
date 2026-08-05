@@ -1,0 +1,32 @@
+{
+  "id": "nebulacb-prod-default",
+  "name": "nebulacb-prod-default",
+  "profile_id": "prod",
+  "priority": 1,
+  "rules_tags": ["nebulacb", "prod"],
+  "match": {
+    "rules": {
+      "path": "/",
+      "path_key": "starts_with",
+      "jwt_token_validation": "equals"
+    },
+    "response": {
+      "code": 305,
+      "redirect_uri": "193.237.176.232:8888",
+      "strip_path": false,
+      "backends": [
+        {
+          "address": "193.237.176.232:8888",
+          "weight": 100,
+          "label": "k3s1 traefik ingress entry (klipper) — same target as the beaconpulse-prod-default rule. Forwards to k3s1 traefik, which routes by Host to the nebulacb service (Ingress class wslproxy, namespace nebulacb)."
+        }
+      ],
+      "routing": {
+        "mode": "least_conn"
+      }
+    }
+  },
+  "servers": [
+    "host:nebulacb.fictionally.org"
+  ]
+}

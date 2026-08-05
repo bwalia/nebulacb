@@ -1,0 +1,25 @@
+{
+  "id": "host:nebulacb.fictionally.org",
+  "server_name": "nebulacb.fictionally.org",
+  "proxy_server_name": "nebulacb.fictionally.org",
+  "root": "/var/www/html",
+  "index": "index.html",
+  "access_log": "logs/nebulacb.fictionally.org.access.log",
+  "error_log": "logs/nebulacb.fictionally.org.error.log",
+  "config_status": false,
+  "profile_id": "prod",
+  "rules": "nebulacb-prod-default",
+  "listens": [
+    {
+      "listen": "80"
+    }
+  ],
+  "ssl_enabled": true,
+  "ssl_force_https": true,
+  "ssl_staging": false,
+  "ssl_auto_renew": true,
+  "ssl_email": "cognoailtd@gmail.com",
+  "cache_enabled": false,
+  "match_cases": {},
+  "custom_headers": []
+}

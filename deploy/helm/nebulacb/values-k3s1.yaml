@@ -1,0 +1,34 @@
+# Environment overlay for the k3s1 cluster (namespace: nebulacb).
+#
+# The live release also carries user-supplied config (couchbase endpoints and
+# credentials) that is deliberately NOT committed here — always deploy with
+# `--reuse-values` so this overlay layers on top of it, exactly as the
+# deploy-k3s.yml workflow does.
+#
+# `host:` is the single source of truth for the public hostname: the deploy
+# workflow's dns job reads it from this file to upsert the Cloudflare CNAME,
+# and the ingress below must claim the same name. Traffic chain:
+#   browser -> nebulacb.fictionally.org
+#     --(Cloudflare CNAME)--> pop0.wslproxy.com (wslproxy edge; terminates TLS)
+#     -> 193.237.176.232:8888 (k3s1 traefik entry) -> nebulacb service
+# TLS lives at the edge (certbot on the gateway) — there is no cert-manager on
+# k3s1, so the Ingress carries no tls block.
+host: nebulacb.fictionally.org
+
+image:
+  repository: bwalia/nebulacb
+  pullPolicy: Always
+
+service:
+  type: NodePort
+  port: 8080
+
+ingress:
+  enabled: true
+  className: wslproxy
+  hosts:
+    - host: nebulacb.fictionally.org
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
