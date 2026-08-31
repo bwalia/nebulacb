@@ -54,7 +54,7 @@ export function K8sEventsPanel({ namespaces }: Props) {
           <option value="Warning">Warnings Only</option>
           <option value="Normal">Normal Only</option>
         </select>
-        <span style={{ fontSize: '0.75rem', color: '#8888aa' }}>{filtered.length} events</span>
+        <span style={{ fontSize: '0.75rem', color: '#8598ab8aa' }}>{filtered.length} events</span>
       </div>
       <div className="events-list">
         {filtered.length === 0 && (

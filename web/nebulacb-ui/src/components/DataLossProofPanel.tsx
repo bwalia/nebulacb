@@ -62,22 +62,22 @@ export const DataLossProofPanel: React.FC<Props> = ({ proof }) => {
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="srcGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00aaff" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#00aaff" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#3fc8ff" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3fc8ff" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="tgtGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#aa88ff" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#aa88ff" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#a98bff" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#a98bff" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="t" hide />
               <YAxis hide />
               <Tooltip
-                contentStyle={{ background: '#1a1a2e', border: '1px solid #333', color: '#fff', fontSize: '0.75rem' }}
+                contentStyle={{ background: '#0c131b', border: '1px solid #1c2a37', color: '#fff', fontSize: '0.75rem' }}
                 formatter={(val: any, name: any) => [Number(val).toLocaleString(), name === 'source' ? 'Source' : 'Target']}
               />
-              <Area type="monotone" dataKey="source" stroke="#00aaff" fill="url(#srcGrad)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="target" stroke="#aa88ff" fill="url(#tgtGrad)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="source" stroke="#3fc8ff" fill="url(#srcGrad)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="target" stroke="#a98bff" fill="url(#tgtGrad)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -91,14 +91,14 @@ export const DataLossProofPanel: React.FC<Props> = ({ proof }) => {
             <LineChart data={deltaChartData}>
               <XAxis dataKey="t" hide />
               <YAxis hide />
-              <ReferenceLine y={0} stroke="#333" />
+              <ReferenceLine y={0} stroke="#1c2a37" />
               <Tooltip
-                contentStyle={{ background: '#1a1a2e', border: '1px solid #333', color: '#fff', fontSize: '0.75rem' }}
+                contentStyle={{ background: '#0c131b', border: '1px solid #1c2a37', color: '#fff', fontSize: '0.75rem' }}
                 formatter={(val: any) => [Number(val).toLocaleString(), 'Delta']}
               />
               <Line
                 type="monotone" dataKey="delta"
-                stroke={delta === 0 ? '#00ff88' : '#ffaa00'}
+                stroke={delta === 0 ? '#33e1a0' : '#ffb43d'}
                 strokeWidth={2} dot={false}
               />
             </LineChart>
@@ -114,11 +114,11 @@ export const DataLossProofPanel: React.FC<Props> = ({ proof }) => {
         </div>
         <div className="proof-stat">
           <span className="proof-stat-label">Hash Samples Passed</span>
-          <span className="proof-stat-value" style={{ color: '#00ff88' }}>{proof.hash_samples_passed || 0}</span>
+          <span className="proof-stat-value" style={{ color: '#33e1a0' }}>{proof.hash_samples_passed || 0}</span>
         </div>
         <div className="proof-stat">
           <span className="proof-stat-label">Hash Samples Failed</span>
-          <span className="proof-stat-value" style={{ color: proof.hash_samples_failed > 0 ? '#ff4444' : '#00ff88' }}>
+          <span className="proof-stat-value" style={{ color: proof.hash_samples_failed > 0 ? '#ff5d6e' : '#33e1a0' }}>
             {proof.hash_samples_failed || 0}
           </span>
         </div>

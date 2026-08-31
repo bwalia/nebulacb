@@ -78,7 +78,7 @@ export function OperatorPanel() {
               </span>
             </div>
             {s.error ? (
-              <div style={{ color: '#ff4444', fontSize: '0.8rem' }}>{s.error}</div>
+              <div style={{ color: '#ff5d6e', fontSize: '0.8rem' }}>{s.error}</div>
             ) : (
               <>
                 <div className="operator-row">
@@ -87,15 +87,15 @@ export function OperatorPanel() {
                 </div>
                 <div className="operator-row">
                   <span className="operator-label">Desired Image</span>
-                  <span style={{ color: '#00aaff' }}>{s.desired_image}</span>
+                  <span style={{ color: '#3fc8ff' }}>{s.desired_image}</span>
                 </div>
                 <div className="operator-row">
                   <span className="operator-label">Current Image</span>
-                  <span style={{ color: s.drifted ? '#ffaa00' : '#00ff88' }}>{s.current_image || 'unknown'}</span>
+                  <span style={{ color: s.drifted ? '#ffb43d' : '#33e1a0' }}>{s.current_image || 'unknown'}</span>
                 </div>
                 <div className="operator-row">
                   <span className="operator-label">Nodes</span>
-                  <span style={{ color: s.desired_nodes !== s.current_nodes ? '#ffaa00' : '#00ff88' }}>
+                  <span style={{ color: s.desired_nodes !== s.current_nodes ? '#ffb43d' : '#33e1a0' }}>
                     {s.current_nodes}/{s.desired_nodes}
                   </span>
                 </div>
@@ -108,8 +108,8 @@ export function OperatorPanel() {
                     {s.servers.map((sg, j) => (
                       <div key={j} className="operator-server-group">
                         <span style={{ fontWeight: 600 }}>{sg.name}</span>
-                        <span style={{ color: '#8888aa' }}> x{sg.size}</span>
-                        <span style={{ color: '#00aaff', fontSize: '0.7rem', marginLeft: 6 }}>{sg.services?.join(', ')}</span>
+                        <span style={{ color: '#8598ab8aa' }}> x{sg.size}</span>
+                        <span style={{ color: '#3fc8ff', fontSize: '0.7rem', marginLeft: 6 }}>{sg.services?.join(', ')}</span>
                       </div>
                     ))}
                   </div>

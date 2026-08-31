@@ -7,10 +7,10 @@ const CATEGORIES = [
 ];
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#ff4444',
+  critical: '#ff5d6e',
   high: '#ff6644',
-  warning: '#ffaa00',
-  info: '#00aaff',
+  warning: '#ffb43d',
+  info: '#3fc8ff',
 };
 
 export function KnowledgeBasePanel() {
@@ -80,7 +80,7 @@ export function KnowledgeBasePanel() {
         {filtered.map(entry => (
           <div key={entry.id} className={`kb-entry ${expanded === entry.id ? 'expanded' : ''}`}>
             <div className="kb-entry-header" onClick={() => setExpanded(expanded === entry.id ? null : entry.id)}>
-              <span className="kb-severity" style={{ color: SEVERITY_COLORS[entry.severity] || '#888' }}>
+              <span className="kb-severity" style={{ color: SEVERITY_COLORS[entry.severity] || '#8598ab' }}>
                 {entry.severity?.toUpperCase()}
               </span>
               <span className="kb-entry-title">{entry.title}</span>

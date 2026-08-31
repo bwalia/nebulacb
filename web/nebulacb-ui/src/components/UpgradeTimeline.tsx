@@ -54,7 +54,7 @@ export const UpgradeTimeline: React.FC<Props> = ({ upgrade, xdcr, source, alerts
         seenRef.current.add(id);
         newEvents.push({
           id, ts: now, kind: 'node',
-          icon: '\u25C8', color: '#00aaff',
+          icon: '\u25C8', color: '#3fc8ff',
           title: `Node upgrading: ${upgrade.current_node}`,
           detail: `Progress ${upgrade.progress.toFixed(0)}%`,
         });
@@ -91,7 +91,7 @@ export const UpgradeTimeline: React.FC<Props> = ({ upgrade, xdcr, source, alerts
           newEvents.push({
             id, ts: now, kind: 'rebalance',
             icon: '\u21BB',
-            color: source.rebalance_state === 'none' ? '#00ff88' : '#ffaa00',
+            color: source.rebalance_state === 'none' ? '#33e1a0' : '#ffb43d',
             title: source.rebalance_state === 'none' ? 'Rebalance complete' : 'Rebalance started',
             detail: source.cluster_name || 'cluster',
           });
@@ -107,7 +107,7 @@ export const UpgradeTimeline: React.FC<Props> = ({ upgrade, xdcr, source, alerts
         ts: a.timestamp ? new Date(a.timestamp).getTime() : now,
         kind: 'alert',
         icon: a.severity === 'critical' ? '\u26A0' : a.severity === 'warning' ? '!' : 'i',
-        color: a.severity === 'critical' ? '#ff4444' : a.severity === 'warning' ? '#ffaa00' : '#00aaff',
+        color: a.severity === 'critical' ? '#ff5d6e' : a.severity === 'warning' ? '#ffb43d' : '#3fc8ff',
         title: a.title || 'Alert',
         detail: a.message || '',
       });
@@ -181,13 +181,13 @@ export const UpgradeTimeline: React.FC<Props> = ({ upgrade, xdcr, source, alerts
 
 function phaseColor(phase: string): string {
   switch (phase) {
-    case 'completed': return '#00ff88';
-    case 'failed': return '#ff4444';
-    case 'rebalancing': return '#ffaa00';
-    case 'upgrading': return '#00aaff';
-    case 'verifying': return '#aa88ff';
-    case 'preparing': return '#00cccc';
-    default: return '#888';
+    case 'completed': return '#33e1a0';
+    case 'failed': return '#ff5d6e';
+    case 'rebalancing': return '#ffb43d';
+    case 'upgrading': return '#3fc8ff';
+    case 'verifying': return '#a98bff';
+    case 'preparing': return '#2cd4c8';
+    default: return '#8598ab';
   }
 }
 
@@ -213,9 +213,9 @@ function xdcrIcon(state: string): string {
 
 function xdcrColor(state: string): string {
   switch (state) {
-    case 'Running': return '#00ff88';
-    case 'Paused': return '#ffaa00';
-    case 'Restarting': return '#00aaff';
-    default: return '#888';
+    case 'Running': return '#33e1a0';
+    case 'Paused': return '#ffb43d';
+    case 'Restarting': return '#3fc8ff';
+    default: return '#8598ab';
   }
 }

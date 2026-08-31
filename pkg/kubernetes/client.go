@@ -146,6 +146,26 @@ func (k *K8sClient) PatchCouchbaseCluster(ctx context.Context, clusterName, targ
 	return nil
 }
 
+// SetCouchbaseClusterPaused toggles spec.paused on the CouchbaseCluster CR.
+// When paused=true the Operator halts reconcile, allowing in-flight rebalance
+// to finish without starting the next swap-rebalance.
+func (k *K8sClient) SetCouchbaseClusterPaused(ctx context.Context, clusterName string, paused bool) error {
+	patch := fmt.Sprintf(`{"spec":{"paused":%t}}`, paused)
+	args := []string{"patch", "couchbasecluster", clusterName, "-n", k.namespace,
+		"--type", "merge", "-p", patch}
+	if k.kubeconfig != "" {
+		args = append([]string{"--kubeconfig", k.kubeconfig}, args...)
+	}
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("patch paused=%t on %s: %s: %w", paused, clusterName, string(out), err)
+	}
+	log.Printf("[K8s] CouchbaseCluster %s paused=%t", clusterName, paused)
+	return nil
+}
+
 // PodInfo holds basic pod metadata.
 type PodInfo struct {
 	Name      string    `json:"name"`

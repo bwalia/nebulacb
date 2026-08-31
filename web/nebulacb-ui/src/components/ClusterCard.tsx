@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading, onReconnect }) => {
-  const accentColor = role === 'source' ? '#00aaff' : '#aa88ff';
+  const accentColor = role === 'source' ? '#3fc8ff' : '#a98bff';
   const healthy = cluster.healthy;
   const noData = !cluster.cluster_name && !cluster.version && cluster.total_docs === 0;
 
@@ -51,28 +51,28 @@ export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading, onRecon
       {/* Key Metrics Grid */}
       <div className="cluster-metrics-grid">
         <MetricTile label="Documents" value={fmt(cluster.total_docs)} color={accentColor} large />
-        <MetricTile label="Ops/sec" value={fmtNum(cluster.ops_per_sec)} color="#00ff88" />
-        <MetricTile label="GET/sec" value={fmtNum(cluster.cmd_get_per_sec)} color="#00ff88" />
-        <MetricTile label="SET/sec" value={fmtNum(cluster.cmd_set_per_sec)} color="#ffaa00" />
+        <MetricTile label="Ops/sec" value={fmtNum(cluster.ops_per_sec)} color="#33e1a0" />
+        <MetricTile label="GET/sec" value={fmtNum(cluster.cmd_get_per_sec)} color="#33e1a0" />
+        <MetricTile label="SET/sec" value={fmtNum(cluster.cmd_set_per_sec)} color="#ffb43d" />
         <MetricTile
           label="Resident Ratio"
           value={`${(cluster.vb_active_resident_items_ratio || 0).toFixed(1)}%`}
-          color={cluster.vb_active_resident_items_ratio > 90 ? '#00ff88' : '#ff4444'}
+          color={cluster.vb_active_resident_items_ratio > 90 ? '#33e1a0' : '#ff5d6e'}
         />
         <MetricTile
           label="Disk Write Q"
           value={fmtNum(cluster.disk_write_queue)}
-          color={cluster.disk_write_queue > 10000 ? '#ff4444' : '#00ff88'}
+          color={cluster.disk_write_queue > 10000 ? '#ff5d6e' : '#33e1a0'}
         />
         <MetricTile
           label="Cache Miss"
           value={fmtNum(cluster.ep_cache_miss_rate)}
-          color={cluster.ep_cache_miss_rate > 10 ? '#ffaa00' : '#00ff88'}
+          color={cluster.ep_cache_miss_rate > 10 ? '#ffb43d' : '#33e1a0'}
         />
         <MetricTile
           label="Memory"
           value={`${((cluster.total_mem_used_mb / Math.max(cluster.total_mem_total_mb, 1)) * 100).toFixed(0)}%`}
-          color={cluster.total_mem_used_mb / Math.max(cluster.total_mem_total_mb, 1) > 0.85 ? '#ff4444' : '#00ff88'}
+          color={cluster.total_mem_used_mb / Math.max(cluster.total_mem_total_mb, 1) > 0.85 ? '#ff5d6e' : '#33e1a0'}
         />
       </div>
 
@@ -86,8 +86,8 @@ export const ClusterCard: React.FC<Props> = ({ cluster, role, upgrading, onRecon
                 className="node-dot"
                 style={{
                   backgroundColor:
-                    node.status === 'healthy' ? '#00ff88' :
-                    node.status === 'warmup' ? '#ffaa00' : '#ff4444'
+                    node.status === 'healthy' ? '#33e1a0' :
+                    node.status === 'warmup' ? '#ffb43d' : '#ff5d6e'
                 }}
               />
               <span className="node-pill-host">{node.host?.split(':')[0] || `n${i}`}</span>
