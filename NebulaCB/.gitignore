@@ -1,0 +1,8 @@
+bin/
+reports/
+web/nebulacb-ui/node_modules/
+web/nebulacb-ui/build/
+*.exe
+*.test
+*.out
+.env

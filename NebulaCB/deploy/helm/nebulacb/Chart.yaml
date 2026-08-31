@@ -1,0 +1,14 @@
+apiVersion: v2
+name: nebulacb
+description: NebulaCB — Couchbase Migration & Upgrade Mission Control
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - couchbase
+  - migration
+  - upgrade
+  - xdcr
+  - validation
+maintainers:
+  - name: NebulaCB Team

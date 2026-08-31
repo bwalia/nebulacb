@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  nebulacb:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./reports:/app/reports
+    environment:
+      - CB_SOURCE_PASSWORD=${CB_SOURCE_PASSWORD:-password}
+      - CB_TARGET_PASSWORD=${CB_TARGET_PASSWORD:-password}
+      - NEBULACB_AUTH_ENABLED=${NEBULACB_AUTH_ENABLED:-true}
+      - NEBULACB_AUTH_USERNAME=${NEBULACB_AUTH_USERNAME:-admin}
+      - NEBULACB_AUTH_PASSWORD=${NEBULACB_AUTH_PASSWORD:-nebulacb}
+    depends_on:
+      - couchbase-source
+      - couchbase-target
+
+  couchbase-source:
+    image: couchbase:7.2.2
+    ports:
+      - "8091:8091"
+      - "11210:11210"
+    volumes:
+      - cb-source-data:/opt/couchbase/var
+
+  couchbase-target:
+    image: couchbase:7.6.0
+    ports:
+      - "9091:8091"
+      - "12210:11210"
+    volumes:
+      - cb-target-data:/opt/couchbase/var
+
+volumes:
+  cb-source-data:
+  cb-target-data:

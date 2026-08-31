@@ -1,0 +1,326 @@
+Based on your report (great work by the way — this is exactly the kind of real-world validation most teams *don’t* do), here’s a **strong, production-grade prompt** to build a modern Couchbase migration + upgrade validation tool.
+
+I’ve embedded your findings like:
+
+* XDCR 5-min delay (GOXDCR)
+* Zero data loss validation
+* Rolling upgrade behaviour
+* High-ingestion during upgrade scenario
+
+---
+
+# 🚀 Prompt: Build “NebulaCB” — Couchbase Migration & Upgrade Mission Control
+
+Create a production-grade distributed system called **NebulaCB** — a modern Couchbase migration, upgrade validation, and resilience testing platform designed for multi-region, high-ingestion environments.
+
+## 🎯 Objective
+
+NebulaCB must simulate, validate, and observe Couchbase cluster upgrades (e.g., 7.2.2 → 7.6.x) under **real-world load conditions**, ensuring:
+
+* Zero data loss
+* Continuous ingestion during upgrade
+* XDCR replication integrity
+* Automatic detection of replication gaps or inconsistencies
+* Full observability with a **mission-control cockpit dashboard**
+
+---
+
+## 🧱 Core Architecture
+
+Design NebulaCB as a cloud-native system with:
+
+* Golang backend (high concurrency, low overhead)
+* Kubernetes-native deployment (Helm + CRDs)
+* Modular services:
+
+### 1. Data Storm Generator 🌩️
+
+A high-throughput data generator that:
+
+* Writes millions of documents/sec (configurable)
+* Supports:
+
+  * KV operations (insert/update/delete)
+  * Large documents (1KB → 1MB)
+  * Hot/cold key distribution
+* Simulates:
+
+  * Bursty traffic
+  * Sustained high load
+  * Multi-region writes
+
+Must include:
+
+* Sequence IDs
+* Timestamps
+* Region tags
+* Checksum/hash per document
+
+---
+
+### 2. Upgrade Orchestrator ⚙️
+
+Automates Couchbase upgrades:
+
+* Helm-based upgrade execution
+* Node-by-node rolling upgrade tracking
+* Operator-aware (Couchbase Autonomous Operator)
+* Ability to:
+
+  * Pause/resume upgrade
+  * Inject failures (kill pod, delay rebalance)
+  * Control upgrade speed
+
+---
+
+### 3. XDCR Chaos & Validation Engine 🔁
+
+Based on real-world behaviour:
+
+* Detect:
+
+  * Topology changes
+  * VBucket rebalance events
+  * XDCR pipeline pauses (~5 min GOXDCR delay)
+* Track:
+
+  * Replication lag
+  * Mutation queue depth
+  * Pipeline restarts
+
+Must simulate:
+
+* Continuous replication during upgrade
+* Cross-version replication (7.2 → 7.6)
+
+---
+
+### 4. Data Integrity Validator 🔍
+
+Critical component:
+
+* Continuously compare:
+
+  * Source vs Target clusters
+* Validate:
+
+  * Document count
+  * Key presence
+  * Hash consistency
+  * Sequence continuity
+
+If data loss occurs:
+
+* Detect missing keys
+* Detect stale updates
+* Detect duplication
+
+---
+
+### 5. Mission Control Dashboard 🧠 (Cockpit UI)
+
+Design a **live cockpit-style dashboard** (think spacecraft control panel):
+
+#### Layout
+
+### 🟢 Cluster Health Panel
+
+* Node status
+* Rebalance state
+* Upgrade progress %
+
+### 🔁 XDCR Panel
+
+* Replication lag (ms)
+* Pipeline state (Running / Paused / Restarting)
+* Topology change events
+* “GOXDCR Delay Timer” countdown
+
+### 📊 Data Integrity Panel
+
+* Total documents (source vs target)
+* Missing documents count
+* Hash mismatch %
+* Real-time diff stream
+
+### 🌩️ Load Panel
+
+* Writes/sec
+* Reads/sec
+* Latency (P95/P99)
+* Active connections
+
+### 🚨 Alert Panel
+
+* Data loss detected
+* Replication stalled
+* Node failure
+* Upgrade stuck
+
+---
+
+## 🎮 Control Buttons (Mission Control Style)
+
+Include interactive controls:
+
+* ▶️ Start Load Test
+* ⏸ Pause Load
+* 🚀 Start Upgrade
+* 🛑 Abort Upgrade
+* 🔁 Restart XDCR Pipeline
+* 💥 Inject Failure (kill pod / network delay)
+* 🔍 Run Full Data Audit
+
+---
+
+## 📈 Key Metrics to Capture
+
+### Couchbase Metrics
+
+* ops/sec (KV)
+* disk write queue
+* DCP backfill
+* VBucket movement rate
+* rebalance progress
+
+### XDCR Metrics
+
+* changes_left
+* docs_processed
+* replication latency
+* pipeline restart count
+
+### Upgrade Metrics
+
+* time per node upgrade
+* total upgrade duration
+* availability during upgrade
+
+### Data Integrity Metrics
+
+* total expected docs
+* actual docs
+* missing keys
+* mismatch %
+
+---
+
+## 🧪 Test Scenarios
+
+Implement built-in scenarios:
+
+### Scenario 1: High Load Upgrade
+
+* Continuous writes at scale
+* Upgrade in parallel
+* Validate zero data loss
+
+### Scenario 2: XDCR Interruption
+
+* Simulate topology change
+* Validate 5-minute delay handling
+* Ensure self-healing
+
+### Scenario 3: Node Failure During Upgrade
+
+* Kill upgrading pod
+* Validate recovery
+
+### Scenario 4: Multi-Region Sync
+
+* Write in region A
+* Validate replication to region B during upgrade
+
+---
+
+## 📊 Reporting Engine
+
+After each run, generate:
+
+* Upgrade success/failure
+* Data loss summary
+* Replication gap timeline
+* RCA (Root Cause Analysis)
+* Exportable PDF + JSON report
+
+---
+
+## 🧠 Smart Insights (AI Optional)
+
+* Detect patterns:
+
+  * “XDCR delay expected due to rebalance”
+  * “Potential risk: single-node cluster”
+* Recommend:
+
+  * Optimal upgrade window
+  * Node scaling before upgrade
+
+---
+
+## 🎨 UX Style
+
+* Dark theme
+* Neon accents (green, amber, red)
+* Real-time graphs (like Grafana + spacecraft UI)
+* Smooth animations for:
+
+  * Data flow
+  * Node transitions
+  * Replication streams
+
+---
+
+## 🔐 Production Features
+
+* Multi-cluster support
+* RBAC
+* Audit logs
+* API + CLI
+
+---
+
+## 🧩 Bonus Features
+
+* Blue/Green upgrade simulation
+* Time-travel replay of upgrade
+* Integration with Prometheus + Grafana
+* Slack / Teams alerting
+
+---
+
+## ✅ Success Criteria
+
+NebulaCB is successful if:
+
+* It can simulate heavy production load
+* Upgrade Couchbase under load
+* Detect **zero or non-zero data loss accurately**
+* Visualize XDCR delays (~5 min) clearly
+* Provide actionable upgrade insights
+
+---
+
+## 🚀 Tagline
+
+**NebulaCB — Upgrade Fearlessly. Validate Everything. Lose Nothing.**
+
+---
+
+## Why this is powerful (based on your report)
+
+This directly builds on your findings:
+
+* ✔️ **GOXDCR 5-min delay visualised + tracked**
+* ✔️ **Continuous ingestion during upgrade**
+* ✔️ **Zero data loss validation (critical)**
+* ✔️ **Multi-region + XDCR aware**
+* ✔️ **Operator + Helm compatible**
+
+---
+
+If you want next step, I can:
+
+* Turn this into a **real Golang project scaffold**
+* Design the **actual UI (React cockpit)**
+* Or create a **Kubernetes Helm chart for NebulaCB itself**
