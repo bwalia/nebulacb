@@ -1,0 +1,32 @@
+# Minimal collector config for the `production` compose profile.
+# In an engagement this is replaced by whatever the client already runs; the point is that
+# the agents emit OTLP and do not require a bespoke LLM-observability product.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+  # Traces carry prompt and answer previews. Anything leaving the client's boundary should
+  # be scrubbed here as well as at the application layer.
+  attributes/redact:
+    actions:
+      - key: aivc.output_preview
+        action: delete
+      - key: aivc.query
+        action: delete
+
+exporters:
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/redact, batch]
+      exporters: [debug]

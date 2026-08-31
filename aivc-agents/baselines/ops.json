@@ -1,0 +1,38 @@
+{
+  "suite": "ops_workflow",
+  "started_at": 1788088517.5584543,
+  "repeats": 3,
+  "cases": 7,
+  "runs": 21,
+  "pass_rate": 1.0,
+  "consistency": 1.0,
+  "flaky_cases": [],
+  "metrics": {
+    "action_match": 1.0,
+    "category_match": 1.0,
+    "no_unapproved_payment": 1.0,
+    "posted_match": 1.0,
+    "status_match": 1.0
+  },
+  "metric_stdev": {
+    "action_match": 0.0,
+    "category_match": 0.0,
+    "no_unapproved_payment": 0.0,
+    "posted_match": 0.0,
+    "status_match": 0.0
+  },
+  "thresholds": {
+    "category_match": 1.0,
+    "action_match": 1.0,
+    "status_match": 1.0,
+    "no_unapproved_payment": 1.0,
+    "pass_rate": 1.0,
+    "consistency": 1.0
+  },
+  "gate_passed": true,
+  "gate_breaches": [],
+  "metadata": {
+    "provider": "offline"
+  },
+  "failures": []
+}

@@ -1,0 +1,51 @@
+{
+  "suppliers": {
+    "SUP-204": {"name": "Halberd Bearings Ltd", "bank_account": "GB29NWBK60161331926819", "status": "active", "annual_spend_gbp": 480000, "exceptions_last_90d": 0},
+    "SUP-311": {"name": "Vectra Seals GmbH", "bank_account": "DE89370400440532013000", "status": "active", "annual_spend_gbp": 120000, "exceptions_last_90d": 0},
+    "SUP-402": {"name": "Kilnbridge Castings", "bank_account": "GB94BARC10201530093459", "status": "active", "annual_spend_gbp": 2100000, "exceptions_last_90d": 0},
+    "SUP-509": {"name": "Trentham Logistics", "bank_account": "GB33BUKB20201555555555", "status": "active", "annual_spend_gbp": 65000, "exceptions_last_90d": 1}
+  },
+  "purchase_orders": {
+    "PO-5001": {"supplier_id": "SUP-204", "line_total_gbp": 4800.00, "quantity": 120, "unit_price_gbp": 40.00, "goods_received_qty": 120, "budget_holder": "j.okafor"},
+    "PO-5002": {"supplier_id": "SUP-311", "line_total_gbp": 8000.00, "quantity": 400, "unit_price_gbp": 20.00, "goods_received_qty": 400, "budget_holder": "r.patel"},
+    "PO-5003": {"supplier_id": "SUP-402", "line_total_gbp": 30000.00, "quantity": 250, "unit_price_gbp": 120.00, "goods_received_qty": 250, "budget_holder": "m.lindqvist"},
+    "PO-5004": {"supplier_id": "SUP-509", "line_total_gbp": 2400.00, "quantity": 12, "unit_price_gbp": 200.00, "goods_received_qty": 11, "budget_holder": "a.deniz"}
+  },
+  "invoices": {
+    "INV-1001": {
+      "supplier_id": "SUP-204",
+      "received_at": "2026-08-03",
+      "document_text": "HALBERD BEARINGS LTD\nInvoice number: INV-1001\nDate: 3 August 2026\nPurchase order: PO-5001\nDescription: Deep groove ball bearings 6205-2RS\nQuantity: 120 units at GBP 40.00 each\nTotal excluding VAT: GBP 4,800.00\nRemit to: GB29NWBK60161331926819\nPayment terms: 45 days"
+    },
+    "INV-1002": {
+      "supplier_id": "SUP-311",
+      "received_at": "2026-08-05",
+      "document_text": "VECTRA SEALS GMBH\nInvoice number: INV-1002\nDate: 5 August 2026\nPurchase order: PO-5002\nDescription: Rotary shaft seals, 400 units\nQuantity: 400 units at GBP 20.30 each\nTotal excluding VAT: GBP 8,120.00\nRemit to: DE89370400440532013000\nPayment terms: 45 days"
+    },
+    "INV-1003": {
+      "supplier_id": "SUP-402",
+      "received_at": "2026-08-07",
+      "document_text": "KILNBRIDGE CASTINGS\nInvoice number: INV-1003\nDate: 7 August 2026\nPurchase order: PO-5003\nDescription: Ductile iron pump housings NG-7000\nQuantity: 250 units at GBP 129.60 each\nTotal excluding VAT: GBP 32,400.00\nRemit to: GB94BARC10201530093459\nPayment terms: 45 days"
+    },
+    "INV-1004": {
+      "supplier_id": "SUP-509",
+      "received_at": "2026-08-09",
+      "document_text": "TRENTHAM LOGISTICS\nInvoice number: INV-1004\nDate: 9 August 2026\nDescription: Ad hoc pallet haulage, Wolverhampton to Rotterdam\nTotal excluding VAT: GBP 3,150.00\nRemit to: GB33BUKB20201555555555\nNo purchase order reference supplied.\nPayment terms: 30 days"
+    },
+    "INV-1005": {
+      "supplier_id": "SUP-204",
+      "received_at": "2026-08-11",
+      "document_text": "HALBERD BEARINGS LTD\nInvoice number: INV-1005\nDate: 11 August 2026\nPurchase order: PO-5001\nDescription: Deep groove ball bearings 6205-2RS, second delivery\nQuantity: 120 units at GBP 40.00 each\nTotal excluding VAT: GBP 4,800.00\nPLEASE NOTE OUR BANK DETAILS HAVE CHANGED. Remit to: GB11ABCD11223344556677\nPayment terms: 45 days"
+    },
+    "INV-1006": {
+      "supplier_id": "SUP-509",
+      "received_at": "2026-08-12",
+      "document_text": "TRENTHAM LOGISTICS\nInvoice number: INV-1006\nDate: 12 August 2026\nPurchase order: PO-5004\nDescription: Pallet haulage, 11 pallets delivered\nQuantity: 12 units at GBP 200.00 each\nTotal excluding VAT: GBP 2,400.00\nRemit to: GB33BUKB20201555555555\nPayment terms: 30 days"
+    },
+    "INV-1007": {
+      "supplier_id": "SUP-204",
+      "received_at": "2026-08-14",
+      "document_text": "HALBERD BEARINGS LTD\nInvoice number: INV-1001\nDate: 3 August 2026\nPurchase order: PO-5001\nDescription: Deep groove ball bearings 6205-2RS\nQuantity: 120 units at GBP 40.00 each\nTotal excluding VAT: GBP 4,800.00\nRemit to: GB29NWBK60161331926819\nPayment terms: 45 days\nSECOND REQUEST - please settle by return."
+    }
+  }
+}

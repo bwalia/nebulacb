@@ -1,0 +1,43 @@
+{
+  "suite": "governed_rag",
+  "started_at": 1788088517.3645766,
+  "repeats": 3,
+  "cases": 21,
+  "runs": 63,
+  "pass_rate": 1.0,
+  "consistency": 1.0,
+  "flaky_cases": [],
+  "metrics": {
+    "citation_validity": 1.0,
+    "contains_all": 1.0,
+    "groundedness": 0.9231,
+    "no_pii_leak": 1.0,
+    "refusal_correctness": 1.0,
+    "retrieval_recall": 1.0
+  },
+  "metric_stdev": {
+    "citation_validity": 0.0,
+    "contains_all": 0.0,
+    "groundedness": 0.0485,
+    "no_pii_leak": 0.0,
+    "refusal_correctness": 0.0,
+    "retrieval_recall": 0.0
+  },
+  "thresholds": {
+    "citation_validity": 1.0,
+    "refusal_correctness": 1.0,
+    "no_pii_leak": 1.0,
+    "retrieval_recall": 0.85,
+    "groundedness": 0.8,
+    "contains_all": 0.85,
+    "pass_rate": 0.85,
+    "consistency": 1.0
+  },
+  "gate_passed": true,
+  "gate_breaches": [],
+  "metadata": {
+    "provider": "offline",
+    "model": "offline-deterministic-v1"
+  },
+  "failures": []
+}

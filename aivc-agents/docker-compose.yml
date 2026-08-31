@@ -1,0 +1,52 @@
+# Local stack. `docker compose up` gives the API on :8000 with nothing else required.
+# The postgres and otel services are opt-in (`--profile production`) and exist to show the
+# shape of the production topology: pgvector for retrieval, an OTLP collector for traces.
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      AIVC_PROVIDER: ${AIVC_PROVIDER:-ollama}
+      AIVC_MODEL: ${AIVC_MODEL:-auto}
+      AIVC_OLLAMA_BASE_URL: ${AIVC_OLLAMA_BASE_URL:-http://192.168.1.177:11434}
+      AIVC_ANTHROPIC_API_KEY: ${AIVC_ANTHROPIC_API_KEY:-}
+      AIVC_OPENAI_API_KEY: ${AIVC_OPENAI_API_KEY:-}
+      AIVC_RUN_COST_BUDGET_USD: ${AIVC_RUN_COST_BUDGET_USD:-0.50}
+      AIVC_OTEL_ENDPOINT: ${AIVC_OTEL_ENDPOINT:-}
+    volumes:
+      - agent-state:/app/.state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    profiles: ["production"]
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-locally}
+      POSTGRES_DB: aivc
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
+
+  otel-collector:
+    profiles: ["production"]
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./deploy/otel-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4318:4318"
+
+volumes:
+  agent-state:
+  pgdata:
