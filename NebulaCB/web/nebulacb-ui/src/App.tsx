@@ -7,8 +7,22 @@ import { LoadPanel } from './components/LoadPanel';
 import { AlertPanel } from './components/AlertPanel';
 import { ControlPanel } from './components/ControlPanel';
 import { LoginPage } from './components/LoginPage';
-import { Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus } from './types';
+import { AskAIPanel } from './components/AskAIPanel';
+import { RCAPanel } from './components/RCAPanel';
+import { KnowledgeBasePanel } from './components/KnowledgeBasePanel';
+import { AIInsightsPanel } from './components/AIInsightsPanel';
+import { CockpitView } from './components/CockpitView';
+import { K8sLogsPanel } from './components/K8sLogsPanel';
+import { K8sEventsPanel } from './components/K8sEventsPanel';
+import { OperatorPanel } from './components/OperatorPanel';
+import { RunbooksPanel } from './components/RunbooksPanel';
+import {
+  Command, ClusterMetrics, XDCRStatus, DataLossProof, StormMetrics, UpgradeStatus,
+  RegionStatus, FailoverStatus, BackupStatus, MigrationStatus, AIInsight,
+} from './types';
 import './App.css';
+
+type TabKey = 'cockpit' | 'dashboard' | 'ask-ai' | 'rca' | 'knowledge' | 'insights' | 'k8s-logs' | 'events' | 'operator' | 'runbooks';
 
 const emptyCluster: ClusterMetrics = {
   cluster_name: '', nodes: [], rebalance_state: 'none', total_docs: 0,
@@ -56,7 +70,7 @@ function App() {
       setAuthChecked(true);
     }).catch(() => {
       setAuthChecked(true);
-      setAuthenticated(true); // If can't reach server, show dashboard (will fail gracefully)
+      setAuthenticated(true);
     });
   }, []);
 
@@ -84,7 +98,8 @@ function App() {
 }
 
 function Dashboard({ onLogout }: { onLogout?: () => void }) {
-  const { state, connected } = useWebSocket();
+  const { state, connected, reconnect } = useWebSocket();
+  const [activeTab, setActiveTab] = useState<TabKey>('cockpit');
 
   if (state?.storm_metrics) {
     stormHistory.push(state.storm_metrics);
@@ -93,9 +108,12 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
 
   const handleCommand = useCallback(async (cmd: Command) => {
     try {
-      await apiCommand(cmd);
+      const result = await apiCommand(cmd);
+      if (result.status === 'error') {
+        alert(`Command failed: ${result.message}`);
+      }
     } catch (e) {
-      console.error(`[CMD] ${cmd.action} failed:`, e);
+      alert(`Command failed: ${e}`);
     }
   }, []);
 
@@ -107,23 +125,33 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
   const storm = state?.storm_metrics || emptyStorm;
   const upgrade = state?.upgrade_status || emptyUpgrade;
   const alerts = state?.alerts || [];
+  const regions = state?.regions || [];
+  const failoverStatus = state?.failover_status;
+  const backupStatus = state?.backup_status;
+  const migrationStatus = state?.migration_status;
+  const aiInsights = state?.ai_insights || [];
   const upgrading = upgrade.phase === 'upgrading' || upgrade.phase === 'rebalancing';
 
-  // Build ordered cluster list: source first, target second, then extras
+  // Extract k8s namespaces from cluster configs (for logs/events tabs)
+  const k8sNamespaces = Array.from(new Set(
+    Object.values(clusters).map(c => (c as any).namespace).filter(Boolean)
+  )) as string[];
+  if (k8sNamespaces.length === 0) k8sNamespaces.push('couchbase', 'couchbase-test');
+
+  // Build ordered cluster list
   const clusterEntries = Object.entries(clusters);
   const sortedClusters = [
     ...clusterEntries.filter(([, c]) => c.cluster_name === source.cluster_name && source.cluster_name),
     ...clusterEntries.filter(([, c]) => c.cluster_name === target.cluster_name && target.cluster_name && c.cluster_name !== source.cluster_name),
     ...clusterEntries.filter(([, c]) => c.cluster_name !== source.cluster_name && c.cluster_name !== target.cluster_name),
   ];
-  // Deduplicate
   const seen = new Set<string>();
   const uniqueClusters = sortedClusters.filter(([name]) => {
     if (seen.has(name)) return false;
     seen.add(name);
     return true;
   });
-  const clusterCount = uniqueClusters.length || 2; // fallback for source/target
+  const clusterCount = uniqueClusters.length || 2;
 
   return (
     <div className="app">
@@ -132,16 +160,29 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         <div className="header-left">
           <span className="logo-icon">&#x25C8;</span>
           <span className="logo-text">NebulaCB</span>
-          <span className="tagline">Migration &amp; Upgrade Mission Control</span>
+          <span className="tagline">Complete Couchbase Management Platform</span>
         </div>
         <div className="header-right">
           <span className={`conn-badge ${connected ? 'live' : 'off'}`}>
             {connected ? 'LIVE' : 'OFFLINE'}
           </span>
+          <button className="reconnect-btn" onClick={reconnect} title="Force reconnect to clusters">
+            &#x21BB; Reconnect
+          </button>
           {clusterCount > 0 && (
             <span className="cluster-count-badge">{clusterCount} CLUSTERS</span>
           )}
+          {regions.length > 0 && (
+            <span className="cluster-count-badge" style={{ background: '#123726', color: '#33e1a0' }}>
+              {regions.length} REGIONS
+            </span>
+          )}
           {upgrading && <span className="upgrade-badge-header">UPGRADE IN PROGRESS</span>}
+          {migrationStatus && migrationStatus.status === 'running' && (
+            <span className="upgrade-badge-header" style={{ background: '#122236' }}>
+              MIGRATING {migrationStatus.progress.toFixed(0)}%
+            </span>
+          )}
           <span className="header-time">
             {state?.timestamp ? new Date(state.timestamp).toLocaleTimeString() : '--:--:--'}
           </span>
@@ -153,7 +194,90 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
         </div>
       </header>
 
+      {/* Tab Navigation */}
+      <nav className="tab-nav">
+        {([
+          ['cockpit', 'Cockpit', '\uD83D\uDEF0'],
+          ['dashboard', 'Dashboard', '\u25C8'],
+          ['ask-ai', 'Ask AI', '\uD83E\uDD16'],
+          ['rca', 'RCA', '\uD83D\uDD0D'],
+          ['knowledge', 'Knowledge', '\uD83D\uDCDA'],
+          ['insights', 'Insights', '\uD83D\uDCCA'],
+          ['k8s-logs', 'Pod Logs', '\uD83D\uDCDC'],
+          ['events', 'Events', '\u26A1'],
+          ['operator', 'Operator', '\u2638\uFE0F'],
+          ['runbooks', 'Runbooks', '\uD83D\uDCCB'],
+        ] as [TabKey, string, string][]).map(([key, label, icon]) => (
+          <button
+            key={key}
+            className={`tab-btn ${activeTab === key ? 'active' : ''}`}
+            onClick={() => setActiveTab(key)}
+          >
+            <span className="tab-icon">{icon}</span>
+            <span className="tab-label">{label}</span>
+          </button>
+        ))}
+      </nav>
+
       <main className="main-layout">
+        {/* Cockpit Tab — Mission Control */}
+        {activeTab === 'cockpit' && (
+          <CockpitView
+            clusters={clusters}
+            source={source}
+            target={target}
+            xdcr={xdcr}
+            proof={proof}
+            storm={storm}
+            stormHistory={stormHistory}
+            upgrade={upgrade}
+            alerts={alerts}
+            onCommand={handleCommand}
+          />
+        )}
+
+        {/* AI Tabs */}
+        {activeTab === 'ask-ai' && <AskAIPanel clusters={clusters} />}
+        {activeTab === 'rca' && <RCAPanel clusters={clusters} />}
+        {activeTab === 'knowledge' && <KnowledgeBasePanel />}
+        {activeTab === 'insights' && <AIInsightsPanel />}
+        {/* Enterprise Tabs */}
+        {activeTab === 'k8s-logs' && <K8sLogsPanel namespaces={k8sNamespaces} />}
+        {activeTab === 'events' && <K8sEventsPanel namespaces={k8sNamespaces} />}
+        {activeTab === 'operator' && <OperatorPanel />}
+        {activeTab === 'runbooks' && <RunbooksPanel />}
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && <>
+        {/* Region Bar (if multi-region) */}
+        {regions.length > 0 && (
+          <section className="region-bar">
+            <div className="panel-header">
+              <span className="panel-indicator" style={{ backgroundColor: '#23c79b' }} />
+              REGIONS
+            </div>
+            <div className="region-cards">
+              {regions.map((r: RegionStatus) => (
+                <div key={r.name} className={`region-card ${r.status}`}>
+                  <div className="region-name">
+                    {r.display_name || r.name}
+                    {r.primary && <span className="primary-badge">PRIMARY</span>}
+                  </div>
+                  <div className="region-meta">
+                    {r.provider && <span className="region-provider">{r.provider}</span>}
+                    <span className={`region-status-dot ${r.status}`} />
+                    {r.cluster_count} clusters ({r.healthy_clusters} healthy)
+                  </div>
+                  <div className="region-stats">
+                    <span>{r.total_docs?.toLocaleString()} docs</span>
+                    <span>{r.ops_per_sec?.toFixed(0)} ops/s</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Row 1: All Connected Clusters */}
         <section className="clusters-row" style={{
           gridTemplateColumns: `repeat(${Math.min(clusterCount, 3)}, 1fr)`
@@ -165,12 +289,13 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
                 cluster={cm}
                 role={name === source.cluster_name ? 'source' : name === target.cluster_name ? 'target' : 'source'}
                 upgrading={upgrading && name === source.cluster_name}
+                onReconnect={reconnect}
               />
             ))
           ) : (
             <>
-              <ClusterCard cluster={source} role="source" upgrading={upgrading} />
-              <ClusterCard cluster={target} role="target" />
+              <ClusterCard cluster={source} role="source" upgrading={upgrading} onReconnect={reconnect} />
+              <ClusterCard cluster={target} role="target" onReconnect={reconnect} />
             </>
           )}
         </section>
@@ -180,26 +305,26 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
           <XDCRFlowPanel xdcr={xdcr} sourceDocs={source.total_docs} targetDocs={target.total_docs} />
         </section>
 
-        {/* Row 3: Data Loss Proof + Load + Alerts */}
+        {/* Row 3: Data Loss Proof + Load + Alerts + New Panels */}
         <section className="proof-row">
           <div className="proof-col">
             <DataLossProofPanel proof={proof} />
           </div>
           <div className="side-col">
-            {/* Upgrade Progress (if active) */}
+            {/* Upgrade Progress */}
             {upgrade.phase !== 'pending' && (
               <div className="upgrade-mini-panel">
                 <div className="panel-header">
                   <span className="panel-indicator" style={{
-                    backgroundColor: upgrade.phase === 'completed' ? '#00ff88' :
-                      upgrade.phase === 'failed' ? '#ff4444' : '#00aaff'
+                    backgroundColor: upgrade.phase === 'completed' ? '#33e1a0' :
+                      upgrade.phase === 'failed' ? '#ff5d6e' : '#3fc8ff'
                   }} />
                   UPGRADE: {upgrade.source_version} &rarr; {upgrade.target_version}
                 </div>
                 <div className="panel-body">
                   <div className="upgrade-phase" style={{
-                    color: upgrade.phase === 'completed' ? '#00ff88' :
-                      upgrade.phase === 'failed' ? '#ff4444' : '#00aaff'
+                    color: upgrade.phase === 'completed' ? '#33e1a0' :
+                      upgrade.phase === 'failed' ? '#ff5d6e' : '#3fc8ff'
                   }}>
                     {upgrade.phase.toUpperCase()}
                   </div>
@@ -214,18 +339,168 @@ function Dashboard({ onLogout }: { onLogout?: () => void }) {
               </div>
             )}
 
+            {/* Migration Progress */}
+            {migrationStatus && migrationStatus.status === 'running' && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#3fc8ff' }} />
+                  MIGRATION: {migrationStatus.source_cluster} &rarr; {migrationStatus.target_cluster}
+                </div>
+                <div className="panel-body">
+                  <div className="upgrade-phase" style={{ color: '#3fc8ff' }}>
+                    {migrationStatus.status.toUpperCase()} ({migrationStatus.progress.toFixed(1)}%)
+                  </div>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${migrationStatus.progress}%` }} />
+                  </div>
+                  <div className="upgrade-nodes">
+                    {migrationStatus.migrated_docs?.toLocaleString()}/{migrationStatus.total_docs?.toLocaleString()} docs
+                    | {migrationStatus.docs_per_sec?.toFixed(0)} docs/s
+                    {migrationStatus.failed_docs > 0 && (
+                      <span style={{ color: '#ff5d6e' }}> | {migrationStatus.failed_docs} failed</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HA / Failover Status */}
+            {failoverStatus && failoverStatus.auto_failover_enabled && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff9a4c' }} />
+                  HA / FAILOVER
+                </div>
+                <div className="panel-body" style={{ fontSize: 11 }}>
+                  <div>Mode: <span style={{ color: '#3fc8ff' }}>{failoverStatus.mode}</span></div>
+                  {failoverStatus.primary_cluster && (
+                    <div>Primary: <span style={{ color: '#33e1a0' }}>{failoverStatus.primary_cluster}</span></div>
+                  )}
+                  {failoverStatus.cluster_states && Object.entries(failoverStatus.cluster_states).map(([name, st]) => (
+                    <div key={name} style={{ color: st === 'active' ? '#33e1a0' : st === 'failed' ? '#ff5d6e' : '#aaa' }}>
+                      {name}: {st}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Backup Status */}
+            {backupStatus && (backupStatus.active_backup || backupStatus.last_backup || backupStatus.active_restore) && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: backupStatus.active_backup || backupStatus.active_restore ? '#ffb43d' : '#23c79b' }} />
+                  BACKUP
+                </div>
+                <div className="panel-body" style={{ fontSize: 11 }}>
+                  {backupStatus.active_backup && (
+                    <>
+                      <div>Running: <span style={{ color: '#ffb43d' }}>{backupStatus.active_backup.cluster_name}</span></div>
+                      {backupStatus.active_backup.mode && (
+                        <div>Mode: {backupStatus.active_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
+                      )}
+                      {!!backupStatus.active_backup.docs_exported && (
+                        <div>Docs exported: {backupStatus.active_backup.docs_exported.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.active_backup.bytes_exported && (
+                        <div>Bytes: {(backupStatus.active_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
+                      )}
+                    </>
+                  )}
+                  {backupStatus.active_restore && (
+                    <>
+                      <div>Restoring: <span style={{ color: '#ffb43d' }}>{backupStatus.active_restore.target_cluster}</span></div>
+                      {backupStatus.active_restore.mode && (
+                        <div>Mode: {backupStatus.active_restore.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}</div>
+                      )}
+                      {!!backupStatus.active_restore.docs_restored && (
+                        <div>Docs restored: {backupStatus.active_restore.docs_restored.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.active_restore.errors && (
+                        <div style={{ color: '#ff5d6e' }}>Errors: {backupStatus.active_restore.errors.toLocaleString()}</div>
+                      )}
+                    </>
+                  )}
+                  {!backupStatus.active_backup && backupStatus.last_backup && (
+                    <>
+                      <div>Last: <span style={{ color: backupStatus.last_backup.status === 'completed' ? '#33e1a0' : '#ff5d6e' }}>
+                        {backupStatus.last_backup.status}
+                      </span> ({backupStatus.last_backup.cluster_name})</div>
+                      {backupStatus.last_backup.mode && (
+                        <div>Mode: <span style={{ color: backupStatus.last_backup.mode === 'ce-sdk' ? '#ffb43d' : '#3fc8ff' }}>
+                          {backupStatus.last_backup.mode === 'ce-sdk' ? 'CE · SDK JSONL' : 'EE · cbbackupmgr'}
+                        </span></div>
+                      )}
+                      {backupStatus.last_backup.duration_seconds > 0 && (
+                        <div>Duration: {backupStatus.last_backup.duration_seconds.toFixed(1)}s</div>
+                      )}
+                      {!!backupStatus.last_backup.docs_exported && (
+                        <div>Docs: {backupStatus.last_backup.docs_exported.toLocaleString()}</div>
+                      )}
+                      {!!backupStatus.last_backup.bytes_exported && (
+                        <div>Size: {(backupStatus.last_backup.bytes_exported / (1024 * 1024)).toFixed(1)} MB</div>
+                      )}
+                      {backupStatus.last_backup.mode === 'ce-sdk' && (
+                        <div style={{ color: '#ffb43d', fontSize: 10, marginTop: 4 }}>
+                          CE mode — data only (no indexes / cluster config)
+                        </div>
+                      )}
+                      {backupStatus.last_backup.error && (
+                        <div style={{ color: '#ff5d6e', fontSize: 10, marginTop: 4 }}>
+                          {backupStatus.last_backup.error}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Insights */}
+            {aiInsights.length > 0 && (
+              <div className="upgrade-mini-panel">
+                <div className="panel-header">
+                  <span className="panel-indicator" style={{ backgroundColor: '#ff77d4' }} />
+                  AI INSIGHTS ({aiInsights.length})
+                </div>
+                <div className="panel-body" style={{ fontSize: 11, maxHeight: 120, overflowY: 'auto' }}>
+                  {aiInsights.slice(-3).reverse().map((insight: AIInsight) => (
+                    <div key={insight.id} style={{
+                      padding: '4px 0',
+                      borderBottom: '1px solid #1c2a37',
+                      color: insight.severity === 'critical' ? '#ff5d6e' :
+                        insight.severity === 'warning' ? '#ffb43d' : '#aaa'
+                    }}>
+                      <div style={{ fontWeight: 'bold' }}>{insight.title}</div>
+                      <div>{insight.summary?.substring(0, 100)}...</div>
+                      {insight.suggestions && insight.suggestions.length > 0 && (
+                        <div style={{ color: '#3fc8ff', fontSize: 10 }}>
+                          Suggestion: {insight.suggestions[0]}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <LoadPanel metrics={storm} history={stormHistory} />
             <AlertPanel alerts={alerts} />
           </div>
         </section>
 
         {/* Control Bar */}
-        <ControlPanel onCommand={handleCommand} />
+        <ControlPanel
+          onCommand={handleCommand}
+          clusters={clusters}
+          xdcrStatus={state?.xdcr_status}
+        />
+        </>}
       </main>
 
       <footer className="footer">
-        <span>NebulaCB v0.1.0</span>
-        <span>Upgrade Fearlessly. Validate Everything. Lose Nothing.</span>
+        <span>NebulaCB v1.0</span>
+        <span>The Complete Couchbase Management Platform — Upgrade · Migrate · Monitor · Protect</span>
       </footer>
     </div>
   );

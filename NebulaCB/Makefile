@@ -1,9 +1,14 @@
-.PHONY: build run test clean docker helm ui
+.PHONY: build run test clean docker helm ui package package-deb package-rpm install-local uninstall-local mcp
 
 # Go
 build:
 	go build -o bin/nebulacb ./cmd/nebulacb
 	go build -o bin/nebulacb-cli ./cmd/cli
+	go build -o bin/nebulacb-mcp ./cmd/mcp
+
+# Build just the MCP stdio server
+mcp:
+	go build -o bin/nebulacb-mcp ./cmd/mcp
 
 run: build
 	./bin/nebulacb --config config.json
@@ -59,3 +64,29 @@ audit:
 
 report:
 	./bin/nebulacb-cli report
+
+# ============================================================
+# System packaging (deb / rpm) and local install
+# ============================================================
+NFPM ?= $(shell command -v nfpm 2>/dev/null)
+DIST_DIR := dist
+
+$(DIST_DIR):
+	mkdir -p $(DIST_DIR)
+
+package: package-deb package-rpm
+
+package-deb: build ui $(DIST_DIR)
+	@if [ -z "$(NFPM)" ]; then echo "nfpm not found — install via 'go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest'"; exit 1; fi
+	cd deploy/packaging && $(NFPM) pkg --packager deb --target ../../$(DIST_DIR)/
+
+package-rpm: build ui $(DIST_DIR)
+	@if [ -z "$(NFPM)" ]; then echo "nfpm not found — install via 'go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest'"; exit 1; fi
+	cd deploy/packaging && $(NFPM) pkg --packager rpm --target ../../$(DIST_DIR)/
+
+# Local install via shell script (not via package manager)
+install-local: build ui
+	sudo SOURCE_CONFIG=$(SOURCE_CONFIG) deploy/install/install.sh
+
+uninstall-local:
+	sudo deploy/install/uninstall.sh $(ARGS)

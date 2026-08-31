@@ -18,10 +18,19 @@ import (
 	"github.com/balinderwalia/nebulacb/pkg/couchbase"
 )
 
+// StormClient is the interface the storm generator needs to write/read/delete docs.
+type StormClient interface {
+	Upsert(ctx context.Context, id string, doc interface{}) error
+	Get(ctx context.Context, id string) ([]byte, error)
+	Remove(ctx context.Context, id string) error
+}
+
 // Generator produces high-throughput data storms against a Couchbase cluster.
 type Generator struct {
 	config    models.StormConfig
 	client    *couchbase.Client
+	restClient *couchbase.RESTClient
+	active    StormClient // whichever client is available
 	collector *metrics.Collector
 
 	sequenceID atomic.Uint64
@@ -44,13 +53,38 @@ func NewGenerator(cfg models.StormConfig, client *couchbase.Client, collector *m
 	}
 }
 
+// SetRESTClient sets a REST-based fallback client for when the SDK is unavailable.
+func (g *Generator) SetRESTClient(rc *couchbase.RESTClient) {
+	g.restClient = rc
+}
+
 // Start begins the data storm.
 func (g *Generator) Start(ctx context.Context) error {
 	if g.running.Load() {
 		return fmt.Errorf("storm already running")
 	}
 
-	ctx, g.cancel = context.WithCancel(ctx)
+	// Determine which client to use
+	if g.client != nil {
+		g.active = g.client
+		log.Println("[Storm] Using SDK client (KV protocol)")
+	} else if g.restClient != nil {
+		g.active = g.restClient
+		// REST mode: cap workers and rate to avoid overwhelming the HTTP endpoint
+		if g.config.Workers > 2 {
+			g.config.Workers = 2
+		}
+		if g.config.WritesPerSecond > 20 {
+			g.config.WritesPerSecond = 20
+		}
+		log.Printf("[Storm] Using REST client (HTTP fallback — capped to %d workers, %d writes/sec)",
+			g.config.Workers, g.config.WritesPerSecond)
+	} else {
+		return fmt.Errorf("no Couchbase connection available — configure cluster access to start load test")
+	}
+
+	// Use a detached context so the storm outlives the HTTP request that started it
+	ctx, g.cancel = context.WithCancel(context.Background())
 	g.running.Store(true)
 	g.paused.Store(false)
 
@@ -58,7 +92,11 @@ func (g *Generator) Start(ctx context.Context) error {
 		g.config.Workers, g.config.WritesPerSecond, g.config.Region)
 
 	// Calculate per-worker rate
-	writeInterval := time.Second / time.Duration(g.config.WritesPerSecond/g.config.Workers)
+	perWorkerRate := g.config.WritesPerSecond / g.config.Workers
+	if perWorkerRate <= 0 {
+		perWorkerRate = 1
+	}
+	writeInterval := time.Second / time.Duration(perWorkerRate)
 
 	for i := 0; i < g.config.Workers; i++ {
 		g.wg.Add(1)
@@ -83,6 +121,7 @@ func (g *Generator) Stop() {
 	g.cancel()
 	g.wg.Wait()
 	g.running.Store(false)
+	g.active = nil
 	log.Println("[Storm] Stopped")
 }
 
@@ -105,12 +144,18 @@ func (g *Generator) IsRunning() bool {
 
 func (g *Generator) worker(ctx context.Context, id int, interval time.Duration) {
 	defer g.wg.Done()
+	if id == 0 {
+		log.Printf("[Storm] Worker %d started, interval=%v", id, interval)
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			if id == 0 {
+				log.Printf("[Storm] Worker %d context done", id)
+			}
 			return
 		case <-ticker.C:
 			if g.paused.Load() {
@@ -136,18 +181,27 @@ func (g *Generator) executeOperation(ctx context.Context) {
 
 func (g *Generator) doInsert(ctx context.Context) {
 	seq := g.sequenceID.Add(1)
+	if seq <= 3 {
+		log.Printf("[Storm] doInsert called, seq=%d", seq)
+	}
 	doc := g.generateDocument(seq)
 
 	start := time.Now()
-	err := g.client.Upsert(ctx, doc.ID, doc)
+	err := g.active.Upsert(ctx, doc.ID, doc)
 	latency := float64(time.Since(start).Milliseconds())
 
 	if err != nil {
 		g.collector.RecordError()
+		if seq <= 5 || g.sequenceID.Load()%100 == 0 {
+			log.Printf("[Storm] Write error (seq %d, latency %.0fms): %v", seq, latency, err)
+		}
 		return
 	}
 
 	g.collector.RecordWrite(latency)
+	if seq <= 5 {
+		log.Printf("[Storm] Write OK (seq %d, id=%s, latency %.0fms)", seq, doc.ID, latency)
+	}
 
 	// Track hot keys
 	if randomFloat() < g.config.HotKeyPercentage {
@@ -176,7 +230,7 @@ func (g *Generator) doUpdate(ctx context.Context) {
 	doc.ID = key
 
 	start := time.Now()
-	err := g.client.Upsert(ctx, doc.ID, doc)
+	err := g.active.Upsert(ctx, doc.ID, doc)
 	latency := float64(time.Since(start).Milliseconds())
 
 	if err != nil {
@@ -198,7 +252,7 @@ func (g *Generator) doDelete(ctx context.Context) {
 	g.mu.Unlock()
 
 	start := time.Now()
-	err := g.client.Remove(ctx, key)
+	err := g.active.Remove(ctx, key)
 	latency := float64(time.Since(start).Milliseconds())
 
 	if err != nil {
@@ -279,7 +333,7 @@ func (g *Generator) GetSequenceID() uint64 {
 	return g.sequenceID.Load()
 }
 
-// GetConfig returns the current storm config as JSON.
+// GetConfigJSON returns the current storm config as JSON.
 func (g *Generator) GetConfigJSON() ([]byte, error) {
 	return json.Marshal(g.config)
 }

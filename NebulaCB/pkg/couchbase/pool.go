@@ -15,29 +15,38 @@ type ClientPool struct {
 }
 
 // NewClientPool connects to all clusters in the registry.
-// Failures are logged as warnings — the pool continues with available clusters.
+// SDK connections are attempted asynchronously — the pool is usable immediately
+// and the REST-based monitor works regardless of SDK connectivity.
 func NewClientPool(clusters map[string]models.ClusterConfig) *ClientPool {
 	pool := &ClientPool{
 		clients: make(map[string]*Client, len(clusters)),
 		configs: clusters,
 	}
 
+	var wg sync.WaitGroup
 	for name, cfg := range clusters {
 		if cfg.Host == "" {
 			log.Printf("[Pool] Skipping cluster %s — no host configured", name)
 			continue
 		}
-		client, err := NewClient(cfg)
-		if err != nil {
-			log.Printf("[Pool] WARN: cluster %s (%s) not reachable: %v", name, cfg.Host, err)
-			continue
-		}
-		pool.clients[name] = client
-		log.Printf("[Pool] Connected to cluster %s (%s) bucket=%s role=%s",
-			name, cfg.Host, cfg.Bucket, cfg.Role)
+		wg.Add(1)
+		go func(n string, c models.ClusterConfig) {
+			defer wg.Done()
+			client, err := NewClient(c)
+			if err != nil {
+				log.Printf("[Pool] WARN: cluster %s (%s) SDK not reachable (REST monitor still active): %v", n, c.Host, err)
+				return
+			}
+			pool.mu.Lock()
+			pool.clients[n] = client
+			pool.mu.Unlock()
+			log.Printf("[Pool] Connected to cluster %s (%s) bucket=%s role=%s",
+				n, c.Host, c.Bucket, c.Role)
+		}(name, cfg)
 	}
+	wg.Wait()
 
-	log.Printf("[Pool] %d/%d clusters connected", len(pool.clients), len(clusters))
+	log.Printf("[Pool] %d/%d clusters connected (SDK)", len(pool.clients), len(clusters))
 	return pool
 }
 

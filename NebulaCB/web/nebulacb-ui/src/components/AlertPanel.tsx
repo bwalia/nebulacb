@@ -6,9 +6,9 @@ interface Props {
 }
 
 const severityConfig: Record<string, { color: string; bg: string }> = {
-  critical: { color: '#ff4444', bg: 'rgba(255,68,68,0.1)' },
-  warning: { color: '#ffaa00', bg: 'rgba(255,170,0,0.1)' },
-  info: { color: '#00aaff', bg: 'rgba(0,170,255,0.1)' },
+  critical: { color: '#ff5d6e', bg: 'rgba(255,68,68,0.1)' },
+  warning: { color: '#ffb43d', bg: 'rgba(255,170,0,0.1)' },
+  info: { color: '#3fc8ff', bg: 'rgba(0,170,255,0.1)' },
 };
 
 export const AlertPanel: React.FC<Props> = ({ alerts }) => {

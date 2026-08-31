@@ -1,0 +1,55 @@
+name: Publish landing to S3
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - 'docs/landing/**'
+      - 'docs/architecture.svg'
+      - '.github/workflows/publish-landing.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-landing-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      AWS_REGION: eu-west-2
+      S3_BUCKET: nebulacb-docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync landing page to S3
+        run: |
+          aws s3 cp docs/landing/index.html "s3://${S3_BUCKET}/landing/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "public, max-age=300"
+          aws s3 cp docs/landing/index.html "s3://${S3_BUCKET}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "public, max-age=300"
+          if [ -f docs/architecture.svg ]; then
+            aws s3 cp docs/architecture.svg "s3://${S3_BUCKET}/architecture.svg" \
+              --content-type "image/svg+xml" \
+              --cache-control "public, max-age=86400"
+          fi
+
+      - name: Sync landing directory
+        run: |
+          aws s3 sync docs/landing/ "s3://${S3_BUCKET}/landing/" \
+            --exclude "*.DS_Store" \
+            --cache-control "public, max-age=300" \
+            --delete
