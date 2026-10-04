@@ -1,0 +1,57 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/landing/**'
+      - 'docs/index.html'
+      - 'docs/architecture.svg'
+      - 'docs/.nojekyll'
+      - '.github/workflows/github-pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          # Prefer docs/landing (source of truth); fall back to docs/index.html
+          if [ -f docs/landing/index.html ]; then
+            cp docs/landing/index.html _site/index.html
+          else
+            cp docs/index.html _site/index.html
+          fi
+          if [ -f docs/architecture.svg ]; then
+            cp docs/architecture.svg _site/architecture.svg
+          fi
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
