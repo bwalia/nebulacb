@@ -1,0 +1,30 @@
+name: Sync landing to repo root (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/landing/**'
+      - 'docs/architecture.svg'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy site files to repository root
+        run: |
+          cp docs/landing/index.html index.html
+          cp docs/architecture.svg architecture.svg
+          touch .nojekyll
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html architecture.svg .nojekyll
+          git diff --staged --quiet && exit 0
+          git commit -m "chore(pages): sync landing from docs/landing to repo root"
+          git push
