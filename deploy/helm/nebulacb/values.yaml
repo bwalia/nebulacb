@@ -10,8 +10,10 @@ service:
   port: 8080
 
 ingress:
-  enabled: false
-  className: nginx
+  enabled: true
+  # k3s1 Traefik. The wslproxy IngressClass controller does not program this
+  # cluster's edge; lon1 forwards the host to Traefik on :8888.
+  className: traefik
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
@@ -22,7 +24,7 @@ ingress:
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "upgrade";
   hosts:
-    - host: nebulacb.example.com
+    - host: nebulacb.fictionally.org
       paths:
         - path: /
           pathType: Prefix
